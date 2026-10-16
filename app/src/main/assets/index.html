@@ -222,7 +222,7 @@ const LOCAL_MODEL='gemma-4-E2B (phone)';
 const LOCAL_URL='https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/resolve/main/gemma-4-E2B-it.litertlm';
 const PROVIDERS={
   local:{name:'This phone',base:'local',keyUrl:'',needsKey:false,local:true,
-    blurb:'Gemma 4 E2B runs on your phone: free, offline, no daily limit. One-time 2.6 GB download.'},
+    blurb:'Default. Gemma 4 E2B runs on your phone: free, offline, no daily limit. One-time 2.6 GB download. Have a better model or API key? Pick it here instead.'},
   google:{name:'Google AI Studio',base:'https://generativelanguage.googleapis.com/v1beta/openai',keyUrl:'https://aistudio.google.com/apikey',needsKey:true,
     blurb:'Free, no card. Runs Google’s open Gemma models; Gemini Flash is also free and speaks the best Tamil.'},
   groq:{name:'Groq',base:'https://api.groq.com/openai/v1',keyUrl:'https://console.groq.com/keys',needsKey:true,
@@ -247,13 +247,15 @@ let S={v:2,words:{},turns:[],prefs:Object.assign({},DEFAULT_PREFS),lastActive:0}
 function load(){
   let raw='';
   try{ raw=N?N.loadState():localStorage.getItem('pesu-state'); }catch(e){}
-  if(!raw){ if(window.Local) S.prefs.provider='local'; return; }
+  if(!raw){ if(window.Local) S.prefs.provider='local'; S.prefs.v30=true; return; }
   try{
     const d=JSON.parse(raw);
     if(d&&typeof d==='object'){
       if(d.words&&typeof d.words==='object') S.words=d.words;
       if(Array.isArray(d.turns)) S.turns=d.turns;
       if(d.prefs) S.prefs=Object.assign({},DEFAULT_PREFS,d.prefs);
+      // 3.0: the phone model is the default brain for everyone. Saved cloud keys/models stay, one tap away in Settings.
+      if(!S.prefs.v30){ if(window.Local) S.prefs.provider='local'; S.prefs.v30=true; }
       S.lastActive=Number(d.lastActive)||0;
     }
   }catch(e){}
@@ -841,7 +843,7 @@ function setupHTML(){
       <h1>Free, offline Tamil tutor</h1>
       <p>Pesu runs Google’s Gemma 4 E2B model right on your phone: no key, no daily limit, works offline. It needs a one-time 2.6 GB download.</p>
       ${localPanelHTML(true)}
-      <p style="font-size:.84rem">Prefer the cloud (Gemini, needs a free key, has daily limits)? <a href="#" data-local="cloud">Use the cloud instead</a>.</p>
+      <p style="font-size:.84rem">Have an API key for a stronger model (Gemini, Groq, OpenRouter, your own server)? <a href="#" data-local="cloud">Connect it instead</a>. You can switch any time in Settings.</p>
     </div>`;
   }
   return setupCloudHTML();
