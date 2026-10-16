@@ -1,0 +1,1171 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Pesu</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Catamaran:wght@500;700;800&family=Hind+Madurai:wght@400;500;600&display=swap">
+<style>
+/* Layout: one-screen phone app. Header with three tabs; Talk = scrolling chat over a big mic dock. Banana-leaf green, turmeric for new words. */
+:root{
+  --bg:#F2F4EF;--surface:#FFFFFF;--fg:#18211C;--muted:#5D6A62;--line:#DAE1D8;
+  --accent:#1E6A4F;--accent-ink:#FFFFFF;--accent-soft:#E2EEE7;
+  --turmeric:#A8700A;--turmeric-bg:#FBF0D6;--err:#B3261E;--err-bg:#FBE9E7;
+  --me:#1E6A4F;--me-ink:#FFFFFF;--listen:#C2410C;
+  --display:'Catamaran','Noto Sans Tamil',sans-serif;
+  --body:'Hind Madurai','Noto Sans Tamil',sans-serif;
+  color-scheme:light;
+}
+:root[data-theme="dark"]{
+  --bg:#0F1512;--surface:#18201C;--fg:#E3EAE5;--muted:#93A199;--line:#29342E;
+  --accent:#5CBF96;--accent-ink:#0B1712;--accent-soft:#1D2E26;
+  --turmeric:#E8B84D;--turmeric-bg:#2C2513;--err:#F2867E;--err-bg:#33201E;
+  --me:#2A5C47;--me-ink:#EAF5EF;--listen:#FB8B5B;color-scheme:dark}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:16px;line-height:1.5;overflow:hidden}
+button{font:inherit;color:inherit;cursor:pointer}
+a{color:var(--accent);font-weight:600}
+button:focus-visible,textarea:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+[hidden]{display:none!important}
+.app{height:100%;display:grid;grid-template-rows:auto 1fr auto;grid-template-columns:minmax(0,1fr);max-width:760px;margin:0 auto}
+.app>*{min-width:0}
+header{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 16px;border-bottom:1px solid var(--line)}
+.brand{display:flex;align-items:baseline;gap:6px;min-width:0}
+.brand b{font-family:var(--display);font-weight:800;font-size:1.5rem;color:var(--accent);line-height:1}
+.brand span{font-family:var(--display);font-size:.9rem;color:var(--muted)}
+.tabs{display:flex;gap:2px;background:var(--accent-soft);padding:3px;border-radius:999px}
+.tabs button{border:0;background:transparent;padding:5px 12px;border-radius:999px;font-weight:600;font-size:.88rem;display:flex;gap:5px;align-items:center}
+.tabs button[aria-selected="true"]{background:var(--surface);color:var(--accent)}
+.badge{background:var(--turmeric);color:var(--surface);font-size:.7rem;min-width:18px;height:18px;padding:0 5px;border-radius:9px;display:inline-grid;place-items:center;font-variant-numeric:tabular-nums}
+main{overflow-y:auto;min-height:0;overscroll-behavior:contain}
+section.pane{padding:16px;display:flex;flex-direction:column;gap:14px}
+#talk{gap:12px}
+.msg{max-width:88%;min-width:0}
+.me{align-self:flex-end;background:var(--me);color:var(--me-ink);padding:9px 14px;border-radius:18px 18px 4px 18px;white-space:pre-wrap;overflow-wrap:anywhere}
+.me.partial{opacity:.6;font-style:italic}
+.me{display:flex;flex-direction:column;gap:2px}
+.me-ro{font-size:.95rem;opacity:.92}
+.me-en{font-size:.84rem;opacity:.78}
+.tutor{align-self:flex-start;display:flex;flex-direction:column;gap:8px}
+.bubble{background:var(--surface);border:1px solid var(--line);padding:11px 14px;border-radius:18px 18px 18px 4px;display:flex;flex-direction:column;gap:3px}
+.ta{font-family:var(--display);font-size:1.22rem;font-weight:700;line-height:1.4}
+.ro{font-size:1.02rem;font-weight:500}
+.en{font-size:.88rem;color:var(--muted)}
+.row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:4px}
+.chipbtn{border:1px solid var(--line);background:transparent;border-radius:999px;padding:3px 11px;font-size:.82rem;color:var(--muted)}
+.note{border-radius:12px;padding:9px 12px;font-size:.92rem;display:flex;flex-direction:column;gap:2px}
+.note .lbl{font-size:.7rem;text-transform:uppercase;letter-spacing:.08em;font-weight:600}
+.fix{background:var(--err-bg)} .fix .lbl{color:var(--err)}
+.explain{background:var(--accent-soft)} .explain .lbl{color:var(--accent)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{background:var(--turmeric-bg);border-radius:999px;padding:3px 11px;font-size:.84rem}
+.chip b{color:var(--turmeric);font-weight:600}
+.chip.ok{background:var(--accent-soft)} .chip.ok b{color:var(--accent)}
+.sys{align-self:center;color:var(--muted);font-size:.86rem;text-align:center;max-width:40ch}
+.sys.err{color:var(--err)}
+.banner{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:12px 14px;display:flex;flex-direction:column;gap:8px;font-size:.92rem}
+.banner.warn{border-color:var(--turmeric);background:var(--turmeric-bg)}
+.banner .btns{display:flex;gap:8px;flex-wrap:wrap}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:18px;display:flex;flex-direction:column;gap:12px}
+.card h1{font-family:var(--display);font-size:1.55rem;line-height:1.15;margin:0;text-wrap:balance}
+.card p{margin:0;color:var(--muted)}
+.card ol{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:4px}
+.primary{background:var(--accent);color:var(--accent-ink);border:0;border-radius:999px;padding:10px 20px;font-weight:600}
+.primary:disabled{opacity:.5}
+.ghost{background:transparent;border:1px solid var(--line);border-radius:999px;padding:9px 16px;font-weight:600}
+.danger{color:var(--err)}
+input[type=text],input[type=password],textarea,select{font:inherit;color:var(--fg);background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:9px 12px;width:100%;min-width:0}
+/* dock */
+footer{border-top:1px solid var(--line);background:var(--bg);padding:8px 16px 12px;display:flex;flex-direction:column;gap:8px}
+.quick{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none}
+.quick::-webkit-scrollbar{display:none}
+.quick button{flex:none;border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:5px 12px;font-size:.84rem}
+.quick button.on{border-color:var(--accent);color:var(--accent);font-weight:600}
+.dock{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px}
+.side{display:flex;align-items:center}
+.side.r{justify-content:flex-end}
+.round{width:46px;height:46px;border-radius:50%;border:1px solid var(--line);background:var(--surface);display:grid;place-items:center}
+.mic{position:relative;width:76px;height:76px;border-radius:50%;border:0;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center}
+.mic .ring{position:absolute;inset:-6px;border-radius:50%;border:3px solid var(--listen);opacity:0;transition:transform .09s linear,opacity .2s}
+.mic.listening{background:var(--listen)}
+.mic.listening .ring{opacity:.55}
+.mic.thinking{background:var(--muted)}
+.mic.speaking{background:var(--accent)}
+.mic svg{width:30px;height:30px}
+.status{text-align:center;font-size:.86rem;color:var(--muted);min-height:1.3em}
+.status b{color:var(--fg);font-weight:600}
+.compose{display:flex;gap:8px;align-items:flex-end}
+.compose textarea{border-radius:20px;resize:none;max-height:120px;line-height:1.4}
+.send{width:42px;height:42px;border-radius:50%;border:0;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center;flex:none}
+.send:disabled{opacity:.45}
+@keyframes dots{0%,100%{opacity:.3}50%{opacity:1}}
+.mic.thinking svg{animation:dots 1s infinite}
+/* words */
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.stat{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:10px 12px}
+.stat b{display:block;font-family:var(--display);font-size:1.6rem;line-height:1.1;font-variant-numeric:tabular-nums}
+.stat span{font-size:.78rem;color:var(--muted)}
+.flash{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:22px 18px;display:flex;flex-direction:column;gap:12px;align-items:center;text-align:center;min-height:210px;justify-content:center}
+.flash .front{font-family:var(--display);font-size:1.7rem;font-weight:700;line-height:1.3}
+.flash .dir{font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.flash .back{display:flex;flex-direction:column;gap:2px}
+.btnrow{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+h2{font-family:var(--display);font-size:1.1rem;margin:4px 0 0}
+.wlist{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:14px;background:var(--surface);overflow:hidden}
+.w{display:grid;grid-template-columns:1fr auto;gap:2px 10px;padding:10px 14px;border-top:1px solid var(--line)}
+.w:first-child{border-top:0}
+.w .t{font-family:var(--display);font-weight:700;font-size:1.05rem;min-width:0;overflow-wrap:anywhere}
+.w .t small{font-weight:500;color:var(--muted);font-size:.95rem}
+.w .m{font-size:.86rem;color:var(--muted);grid-column:1;min-width:0}
+.w .sd{grid-row:1/3;grid-column:2;display:flex;flex-direction:column;align-items:flex-end;gap:4px}
+.pulli{display:flex;gap:3px}
+.pulli i{width:7px;height:7px;border-radius:50%;background:var(--line)}
+.pulli i.on{background:var(--accent)}
+.due{font-size:.74rem;color:var(--muted);font-variant-numeric:tabular-nums}
+.due.now{color:var(--turmeric);font-weight:600}
+.tiny{border:0;background:transparent;font-size:.76rem;color:var(--muted);padding:0}
+.tiny.arm{color:var(--err);font-weight:600}
+.empty{color:var(--muted);font-size:.92rem;padding:14px;text-align:center}
+/* settings */
+.group{background:var(--surface);border:1px solid var(--line);border-radius:14px;display:flex;flex-direction:column}
+.set{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;border-top:1px solid var(--line)}
+.set:first-child{border-top:0}
+.set .lab{display:flex;flex-direction:column;min-width:0}
+.set .lab small{color:var(--muted);font-size:.8rem;line-height:1.35}
+.set.col{flex-direction:column;align-items:stretch}
+.switch{appearance:none;-webkit-appearance:none;width:44px;height:26px;border-radius:13px;background:var(--line);position:relative;flex:none;border:0;margin:0}
+.switch::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:var(--surface);transition:transform .15s}
+.switch:checked{background:var(--accent)}
+.switch:checked::after{transform:translateX(18px)}
+.seg{display:flex;background:var(--accent-soft);border-radius:999px;padding:3px;flex:none}
+.seg button{border:0;background:transparent;border-radius:999px;padding:4px 12px;font-size:.84rem;font-weight:600}
+.seg button.on{background:var(--surface);color:var(--accent)}
+input[type=range]{width:100%;accent-color:var(--accent)}
+.mono{font-family:ui-monospace,monospace;font-size:.8rem}
+.lbar{height:8px;border-radius:4px;background:var(--line);overflow:hidden}
+.lbar i{display:block;height:100%;background:var(--accent);transition:width .4s}
+.timing{flex-basis:100%;font-size:.74rem;color:var(--muted);font-variant-numeric:tabular-nums}
+.timing b{color:var(--fg);font-weight:600}
+.spd-list{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.spd{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:10px;align-items:center;padding:9px 12px;border-top:1px solid var(--line)}
+.spd:first-child{border-top:0}
+.spd-m{display:flex;flex-direction:column;min-width:0;overflow-wrap:anywhere;font-size:.88rem}
+.spd-m small{color:var(--muted);font-size:.84rem}
+.spd-t{font-variant-numeric:tabular-nums;font-weight:600;font-size:.9rem}
+.spd .ghost{padding:5px 12px;font-size:.84rem}
+.tag{display:inline-block;font-size:.68rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;background:var(--accent-soft);color:var(--accent);border-radius:6px;padding:1px 6px}
+.tag.in{background:var(--turmeric-bg);color:var(--turmeric)}
+.ok-t{color:var(--accent);font-weight:600}
+.bad-t{color:var(--err);font-weight:600}
+@media (prefers-reduced-motion:no-preference){.msg{animation:in .18s ease-out}@keyframes in{from{transform:translateY(4px);opacity:.4}to{transform:none;opacity:1}}}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="brand"><b>பேசு</b><span>Pesu</span></div>
+    <div class="tabs" role="tablist">
+      <button id="tab-talk" role="tab" aria-selected="true">Talk</button>
+      <button id="tab-words" role="tab" aria-selected="false">Words <span class="badge" id="due-badge" hidden>0</span></button>
+      <button id="tab-set" role="tab" aria-selected="false" aria-label="Settings">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+      </button>
+    </div>
+  </header>
+  <main id="main">
+    <section class="pane" id="talk"></section>
+    <section class="pane" id="words" hidden></section>
+    <section class="pane" id="settings" hidden></section>
+  </main>
+  <footer id="dock">
+    <div class="quick" id="quick">
+      <button data-say="தெரியல (I don't know this)">🤷 Theriyala</button>
+      <button data-say="கொஞ்சம் simple-ஆ சொல்லுங்க (say it simpler)">Simpler</button>
+      <button data-say="(change the topic please)">New topic</button>
+      <button data-act="repeat">↻ Repeat</button>
+      <button data-act="miclang" id="miclang">Mic: தமிழ்</button>
+      <button data-act="handsfree" id="hf">Hands-free</button>
+    </div>
+    <div class="status" id="status"></div>
+    <div class="dock">
+      <div class="side"><button class="round" id="kbd" aria-label="Type instead">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="6" width="20" height="13" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 15h10"/></svg>
+      </button></div>
+      <button class="mic" id="mic" aria-label="Talk">
+        <span class="ring" id="ring"></span>
+        <svg id="mic-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v4"/></svg>
+      </button>
+      <div class="side r"><button class="round" id="stopall" aria-label="Stop" hidden>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+      </button></div>
+    </div>
+    <div class="compose" id="compose" hidden>
+      <textarea id="box" rows="1" placeholder="Type in Tamil, Tanglish or English…" aria-label="Your message"></textarea>
+      <button class="send" id="send" aria-label="Send" disabled>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+      </button>
+    </div>
+  </footer>
+</div>
+
+<script>
+(function(){
+'use strict';
+const N=window.Native||null;
+const $=s=>document.querySelector(s);
+const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const DAY=864e5, INT=[0,0,1,2,4,8,16];
+// Any OpenAI-compatible chat API works. The first three have free tiers; "custom" is your own server (e.g. Ollama).
+const LOCAL=window.Local||null;
+const LOCAL_MODEL='gemma-4-E2B (phone)';
+const LOCAL_URL='https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/resolve/main/gemma-4-E2B-it.litertlm';
+const PROVIDERS={
+  local:{name:'This phone',base:'local',keyUrl:'',needsKey:false,local:true,
+    blurb:'Gemma 4 E2B runs on your phone: free, offline, no daily limit. One-time 2.6 GB download.'},
+  google:{name:'Google AI Studio',base:'https://generativelanguage.googleapis.com/v1beta/openai',keyUrl:'https://aistudio.google.com/apikey',needsKey:true,
+    blurb:'Free, no card. Runs Google’s open Gemma models; Gemini Flash is also free and speaks the best Tamil.'},
+  groq:{name:'Groq',base:'https://api.groq.com/openai/v1',keyUrl:'https://console.groq.com/keys',needsKey:true,
+    blurb:'Free tier, very fast. Runs open models such as Llama.'},
+  openrouter:{name:'OpenRouter',base:'https://openrouter.ai/api/v1',keyUrl:'https://openrouter.ai/keys',needsKey:true,
+    blurb:'One free key for many open models. Only models marked “free” are listed.'},
+  custom:{name:'My own server',base:'',keyUrl:'',needsKey:false,
+    blurb:'Any OpenAI-compatible server, e.g. Ollama on your laptop over Wi-Fi: http://192.168.x.x:11434/v1'}
+};
+const PREFER_LOCAL=[];
+const SKIP_MODEL=/embed|tts|whisper|guard|imagen|image|veo|audio|live|aqa|moderat|transcri|speech|lyria|robotics|computer-use|native-audio/i;
+const PREFER={
+  google:[/gemma-4/i,/gemma-3-27b/i,/gemma/i,/gemini-[\d.]+-flash(?!-lite)/i],
+  groq:[/llama-4-maverick/i,/llama-4-scout/i,/llama-3\.3-70b/i,/gpt-oss-120b/i,/qwen/i,/llama/i],
+  openrouter:[/gemma/i,/llama-4-maverick/i,/deepseek/i,/qwen/i,/llama-3\.3-70b/i,/llama/i],
+  custom:[/gemma/i,/llama/i,/qwen/i]
+};
+
+/* ================= state & storage ================= */
+const DEFAULT_PREFS={patience:'normal',script:true,english:true,provider:'google',models:{},modelLists:{},customUrl:'',handsFree:true,speak:true,speakEnglish:false,rate:0.9,micLang:'ta-IN'};
+let S={v:2,words:{},turns:[],prefs:Object.assign({},DEFAULT_PREFS),lastActive:0};
+function load(){
+  let raw='';
+  try{ raw=N?N.loadState():localStorage.getItem('pesu-state'); }catch(e){}
+  if(!raw){ if(window.Local) S.prefs.provider='local'; return; }
+  try{
+    const d=JSON.parse(raw);
+    if(d&&typeof d==='object'){
+      if(d.words&&typeof d.words==='object') S.words=d.words;
+      if(Array.isArray(d.turns)) S.turns=d.turns;
+      if(d.prefs) S.prefs=Object.assign({},DEFAULT_PREFS,d.prefs);
+      S.lastActive=Number(d.lastActive)||0;
+    }
+  }catch(e){}
+}
+let saveTimer=null;
+function save(){
+  clearTimeout(saveTimer);
+  saveTimer=setTimeout(saveNow,250);
+}
+function saveNow(){
+  clearTimeout(saveTimer);
+  const json=JSON.stringify(S);
+  try{ if(N) N.saveState(json); else localStorage.setItem('pesu-state',json); }catch(e){}
+}
+load();
+const P=()=>S.prefs;
+if(!S.prefs.v23){ S.prefs.speakEnglish=false; S.prefs.v23=true; }   // English is shown as text only
+if(N){ try{N.setRate(P().rate)}catch(e){} }
+
+/* ================= words: spaced repetition ================= */
+const key=r=>String(r||'').toLowerCase().replace(/[^a-z ]/g,'').replace(/\s+/g,' ').trim();
+function addWord(w){
+  if(!w) return null;
+  const k=key(w.roman); if(!k||S.words[k]) return null;
+  S.words[k]={ta:String(w.ta||''),roman:String(w.roman),en:String(w.en||''),ex:String(w.example_roman||''),box:1,due:Date.now(),added:Date.now(),seen:0};
+  return k;
+}
+function grade(k,ok){
+  const w=S.words[k]; if(!w) return;
+  w.seen=(w.seen||0)+1;
+  if(ok){w.box=Math.min(5,(w.box||1)+1); w.due=Date.now()+INT[w.box]*DAY;}
+  else {w.box=1; w.due=Date.now();}
+}
+const allWords=()=>Object.entries(S.words);
+const dueWords=()=>allWords().filter(([k,w])=>w.due<=Date.now()).sort((a,b)=>(a[1].box-b[1].box)||(a[1].due-b[1].due));
+
+/* ================= the tutor ================= */
+const RULES=`You are "Pesu", a warm, patient tutor for SPOKEN Tamil, in a voice conversation with one adult learner.
+
+The learner is a beginner: they understand small everyday words and can manage simple things like taking an auto or bargaining, but cannot hold a longer conversation yet. Your job is to build fluency through real conversation that works like flashcards: start small and keep adding words.
+
+How you talk:
+- Colloquial spoken Tamil as people actually speak it (everyday Chennai style), never literary or formal written Tamil. E.g. "enna panreenga?" not "enna seigireergal?", "varen" not "varugiren", "irukku" not "irukkiradhu".
+- Your reply is READ ALOUD by a Tamil voice, so "reply_ta" must be only Tamil script: no English letters, emojis, brackets or romanization. Common English loanwords people use in spoken Tamil are fine written in Tamil script (ஆபீஸ், பஸ், டிபன்).
+- Keep it SHORT: 1-2 short sentences, then ONE simple question the learner can answer. Grow sentence length and vocabulary slowly as their tracked-word count grows (given in the context).
+- Topics: everyday life, food, work, travel, family, weekend plans, the city, shopping. Change topic when asked.
+- The learner's message usually comes from speech recognition, in Tamil script, Tanglish, English, or a mix. It may contain recognition errors: read it charitably and don't treat recognition glitches as the learner's mistakes. If you truly can't understand, ask them to say it again simply.
+
+When the learner doesn't know something (they say "theriyala"/"தெரியல", "I don't know", "what is X", "?", or switch to English because they're stuck):
+1. FIRST explain it in "explain": meaning, how it's used, and a tiny example. 1-2 short English sentences (this is also read aloud, so keep it brief and natural; write Tamil words in simple romanization inside it).
+2. THEN add the word(s) to "new_words".
+3. Then continue with an easy question that lets them use the word right away.
+
+Corrections: if their Tamil has a real mistake (wrong word, wrong form, unnatural phrasing), fill "correction" gently with the natural spoken version. Ignore spelling and romanization variation. Don't correct English they used on purpose; just teach the Tamil word.
+
+Review words: the context lists words due for review. Work 1-2 of them naturally into your reply, ideally in a question that makes the learner SAY the word in their answer.
+
+"practiced": for each TRACKED word (use its exact key) that the learner tried to use in their LATEST message, report "correct" if used right, "wrong" if misused. Also report "wrong" if you prompted a tracked word and they couldn't recall it. Only words the learner themselves produced or failed, never words you said.
+
+"new_words": words new to this learner and worth tracking (not already tracked): anything they asked about or didn't know, plus at most 2 key words from your reply a beginner likely doesn't know. Skip very basic words (naan, nee, enna, illa, aamaa, sari). Max 4 per turn.
+
+Romanization: simple and consistent, keyboard friendly: "zh" for ழ, doubled vowels for long vowels (aa, ee, oo), "th" for த.
+
+Reply with ONLY one JSON object, no other text, with the keys in exactly this order (it is read while you are still writing):
+{"correction": null or {"you_said": "...", "better_ta": "...", "better_roman": "...", "why": "<short English reason>"}, "explain": null or "<short English explanation>", "reply_ta": "<reply in Tamil script>", "reply_roman": "<same, romanized>", "reply_en": "<English meaning>", "new_words": [{"ta": "...", "roman": "...", "en": "...", "example_roman": "..."}], "practiced": [{"key": "<tracked key>", "result": "correct" or "wrong"}], "learner_roman": "<the learner's latest message, romanized; null if it was in English or there was none>", "learner_en": "<its English meaning; null if it was in English or there was none>"}`;
+
+const KICK_NEW="[The learner just opened the app for the first time. Greet them briefly in simple spoken Tamil and ask ONE very easy question to start. Add 1-2 useful new words.]";
+const KICK_BACK="[The learner is starting a new session. Greet them briefly, then start a fresh, simple conversation. If any words are due for review, open with a question that makes them use one.]";
+
+let returningNote='';
+function context(){
+  const all=allWords();
+  const due=dueWords().slice(0,4).map(([k,w])=>`${k} = ${w.en}`);
+  const tracked=all.slice().sort((a,b)=>b[1].added-a[1].added).slice(0,60).map(([k,w])=>`${k} = ${w.en} [box ${w.box}]`);
+  const solid=all.filter(([k,w])=>w.box>=4).length;
+  let c=`[Context]\nTracked words: ${all.length} (well known: ${solid}). Box 1 = just learned, box 5 = solid.\n`+
+    `Due for review now: ${due.length?due.join('; '):'none'}\n`+
+    `Tracked list (key = meaning [box]): ${tracked.length?tracked.join('; '):'(none yet)'}`;
+  if(returningNote) c+='\n'+returningNote;
+  return c;
+}
+function buildMessages(hist,current){
+  const msgs=[];
+  for(const t of hist.slice(-10)){
+    if(t.role==='me') msgs.push({role:'user',content:"Learner's message: "+t.text});
+    else if(t.role==='tutor'&&t.data) msgs.push({role:'assistant',content:JSON.stringify({reply_ta:t.data.reply_ta,reply_roman:t.data.reply_roman})});
+  }
+  msgs.push({role:'user',content:context()+'\n\n'+current});
+  // Chat APIs want alternating roles starting with the learner.
+  const out=[];
+  for(const m of msgs){
+    if(out.length&&out[out.length-1].role===m.role) out[out.length-1].content+='\n\n'+m.content;
+    else out.push({role:m.role,content:m.content});
+  }
+  if(out[0].role!=='user') out.unshift({role:'user',content:'(conversation start)'});
+  // Instructions ride in the first user turn: some open models (Gemma) reject a system role.
+  out[0].content=RULES+'\n\n---\n\n'+out[0].content;
+  return out;
+}
+function parseJSON(text){
+  const t=String(text||'').trim();
+  try{return JSON.parse(t)}catch(e){}
+  const f=t.match(/```(?:json)?\s*([\s\S]*?)```/); if(f){try{return JSON.parse(f[1])}catch(e){}}
+  const a=t.indexOf('{'), b=t.lastIndexOf('}');
+  if(a>=0&&b>a){try{return JSON.parse(t.slice(a,b+1))}catch(e){}}
+  return null;
+}
+
+/* ================= conversation engine ================= */
+// phase: idle | listening | thinking | speaking
+let phase='idle', partial='', note='', noteErr=false, reqSeq=0, activeReq=null, speakSeq=-1, retries=0, lastFailed=null, convo=false;
+let tts={ready:false,tamil:false,engine:'',googleInstalled:false,known:false};
+
+const pending={}, streams={};
+let localSt={downloaded:false,downloading:false,loading:false,ready:false,backend:'',error:'',done:0,total:0};
+let localSess=null, afterLocalReady=null;
+function refreshLocal(){ if(!LOCAL) return; try{ Object.assign(localSt,JSON.parse(LOCAL.status())); }catch(e){} }
+function localUsable(){ return !!LOCAL&&localSt.downloaded; }
+function ensureLocalLoaded(){ if(LOCAL&&localSt.downloaded&&!localSt.ready&&!localSt.loading){ localSt.loading=true; LOCAL.load(); } }
+const GB=b=>(b/1e9).toFixed(1);
+// Ask reasoning models not to think at length. Providers accept different values, so walk down this
+// ladder per model when one is refused, and remember what worked.
+const EFFORT_LADDER=['none','minimal','low',null];
+const THINKS=/gemini|gpt-oss|qwen3|deepseek-r|magistral|grok/i;
+function effortFor(model){ if(!THINKS.test(model)) return null; const i=(P().effort||{})[model]||0; return EFFORT_LADDER[Math.min(i,EFFORT_LADDER.length-1)]; }
+function effortRefused(model,code,body){
+  if(code!==400||!THINKS.test(model)) return false;
+  if(!/reason|think|effort|budget/i.test(String(body))) return false;
+  P().effort=P().effort||{}; const i=(P().effort[model]||0)+1;
+  if(i>=EFFORT_LADDER.length) return false;
+  P().effort[model]=i; saveNow(); return true;
+}
+function chatBody(model,messages,extra){
+  const b=Object.assign({model,messages,temperature:0.7},extra||{});
+  const e=effortFor(model); if(e) b.reasoning_effort=e;
+  return b;
+}
+function httpStream(url,headers,body,h){
+  const id='s'+(++reqSeq); streams[id]=h;
+  N.httpStream(id,url,JSON.stringify(headers||{}),JSON.stringify(body));
+  return id;
+}
+function keyFor(p){ try{return N?N.getSecret(p):''}catch(e){return ''} }
+function baseFor(p){ return p==='custom'?String(P().customUrl||'').trim().replace(/\/+$/,''):PROVIDERS[p].base; }
+function modelFor(p){ return p==='local'?LOCAL_MODEL:((P().models||{})[p]||''); }
+function hasKey(){ const p=P().provider; if(!PROVIDERS[p]) return false; if(p==='local') return localUsable(); return !!(baseFor(p)&&(!PROVIDERS[p].needsKey||keyFor(p))&&modelFor(p)); }
+function http(method,url,headers,body,cb){
+  const id='h'+(++reqSeq); pending[id]=cb;
+  N.http(id,method,url,JSON.stringify(headers||{}),body?JSON.stringify(body):'');
+  return id;
+}
+function authHeaders(p){ const h={'content-type':'application/json'}; const k=keyFor(p); if(k) h.authorization='Bearer '+k; if(p==='openrouter') h['X-Title']='Pesu Tamil'; return h; }
+function biggest(ids){
+  const size=i=>{ const m=String(i).match(/(\d+(?:\.\d+)?)b\b/i); return m?parseFloat(m[1]):0; };
+  return ids.slice().sort((a,b)=>(size(b)-size(a))||(b<a?-1:1))[0];
+}
+function pickDefault(p,ids){
+  for(const re of PREFER[p]||[]){ const hits=ids.filter(i=>re.test(i)); if(hits.length) return biggest(hits); }
+  return ids[0]||'';
+}
+// Fetches the provider's model list, keeps the usable chat models, and picks a sensible default.
+function loadModels(p,done){
+  const base=baseFor(p);
+  if(!base){ done(false,'Enter your server address first.'); return; }
+  http('GET',base+'/models',authHeaders(p),null,(code,body)=>{
+    if(code!==200){ done(false,httpMessage(code,body,p,true)); return; }
+    let d=null; try{d=JSON.parse(body)}catch(e){}
+    let list=(d&&(d.data||d.models))||[];
+    let ids=list.map(m=>typeof m==='string'?m:(m.id||m.name||'')).map(i=>String(i).replace(/^models\//,'')).filter(i=>i&&!SKIP_MODEL.test(i));
+    if(p==='openrouter') ids=ids.filter(i=>/:free$/.test(i));
+    if(p==='google') ids=ids.filter(i=>/gemma|gemini/i.test(i));
+    ids=Array.from(new Set(ids)).sort();
+    if(!ids.length){ done(false,'No usable chat models found for this key.'); return; }
+    P().modelLists[p]=ids;
+    if(!ids.includes(modelFor(p))) P().models[p]=pickDefault(p,ids);
+    saveNow(); done(true,'');
+  });
+}
+function httpMessage(code,body,p,listing){
+  let apiMsg=''; try{const e=JSON.parse(body); apiMsg=(Array.isArray(e)?e[0]:e).error.message||''}catch(e){}
+  const who=PROVIDERS[p]?PROVIDERS[p].name:'the server';
+  if(code===0) return p==='custom'?'Can’t reach your server. Check the address and that phone and server are on the same Wi-Fi.':'Can’t reach '+who+'. Check your internet.';
+  if(code===401||code===403) return who+' rejected the API key. Check it in Settings.';
+  if(code===404) return listing?'That address didn’t answer like an OpenAI-compatible server.':'That model isn’t available any more. Pick another one in Settings.';
+  if(code===429) return 'Free limit reached for now. Wait a minute, or switch model or provider in Settings.';
+  if(code>=500) return who+' is busy right now. Wait a moment, then Try again.';
+  return who+' returned an error'+(apiMsg?': '+apiMsg.slice(0,160):' ('+code+')')+'.';
+}
+function setPhase(p){ phase=p; if(N){try{N.keepAwake(p!=='idle'||convo)}catch(e){}} renderDock(); }
+function say(msg,err){ note=msg||''; noteErr=!!err; renderDock(); }
+
+function startListening(){
+  if(!N){ say('Voice works in the Android app.',true); return; }
+  if(!hasKey()){ setTab('set'); return; }
+  try{N.stopSpeaking()}catch(e){}
+  partial=''; resetUtter(); say(''); convo=true;
+  setPhase('listening');
+  N.listen(P().micLang);
+  renderTalk();
+}
+function stopEverything(){
+  resetUtter();
+  afterLocalReady=null;
+  if(activeReq&&activeReq.provider==='local'&&!activeReq.early){ try{LOCAL.cancel()}catch(e){} localSess=null; }
+  commitEarly();
+  convo=false; retries=0;
+  if(N){ try{N.cancelListening()}catch(e){} try{N.stopSpeaking()}catch(e){} }
+  activeReq=null; partial='';
+  setPhase('idle'); renderTalk();
+}
+function micTap(){
+  if(phase==='idle') startListening();
+  else if(phase==='listening'){                                          // "I'm done talking": send what's heard now
+    if((utter+partial).trim()){ flushUtter(); }
+    else {
+      // Nothing heard yet: ask the recognizer to finish, but don't hang if it never answers.
+      sendNow=true; try{N.stopListening()}catch(e){}
+      setTimeout(()=>{ if(phase==='listening'&&sendNow){ sendNow=false; flushUtter(); } },1500);
+    }
+  }
+  else if(phase==='speaking'){ try{N.stopSpeaking()}catch(e){} startListening(); } // interrupt and answer
+  else if(phase==='thinking'){ stopEverything(); say('Stopped.'); }
+}
+
+window.NativeCb={
+  onListen(evt,data){
+    if(phase!=='listening') return;
+    if(evt==='ready'){ say(''); renderDock(); }
+    else if(evt==='begin'){ clearTimeout(utterTimer); utterTimer=null; }
+    else if(evt==='end'){ heard.end=Date.now(); }
+    else if(evt==='level'){ const v=Math.max(0,Math.min(10,parseFloat(data)||0)); $('#ring').style.transform=`scale(${1+v/22})`; }
+    else if(evt==='partial'){ partial=data; armUtterTimer(1500); renderPartial(); }
+    else if(evt==='final'){
+      heard.final=Date.now();
+      const text=(data||partial||'').trim(); partial='';
+      if(text) utter=(utter?utter+' ':'')+text;
+      if(!utter){ noHear(); return; }
+      retries=0;
+      // The recognizer stops at every short pause. Keep listening, and only send once the learner
+      // has been quiet for the chosen wait (or tapped the mic to say "done").
+      if(sendNow){ flushUtter(); return; }
+      renderPartial(); armUtterTimer(); relisten();
+    }
+    else if(evt==='error'){
+      const code=String(data);
+      if((code==='7'||code==='6')&&partial.trim()){ utter=(utter?utter+' ':'')+partial.trim(); partial=''; }
+      if((code==='7'||code==='6')&&utter){
+        partial=''; renderPartial();
+        if(sendNow){ flushUtter(); return; }
+        if(!utterTimer) armUtterTimer();
+        relisten(); return;
+      }
+      partial=''; renderPartial();
+      if(code==='7'||code==='6') return noHear();
+      setPhase('idle'); convo=false;
+      if(code==='permission'||code==='9') say('Pesu needs microphone permission. Tap the mic and allow it, or enable it in Android Settings → Apps → Pesu → Permissions.',true);
+      else if(code==='unavailable') say('No speech recognizer found. Install or update the Google app, then try again.',true);
+      else if(code==='2'||code==='1') say('Speech recognition needs internet. Check your connection and tap the mic.',true);
+      else if(code==='12'||code==='13') say('Tamil speech recognition isn’t available. In the Google app, add Tamil under Voice → Languages.',true);
+      else if(code==='5'||code==='8'||code==='11') { say('The mic was busy. Tap to try again.'); }
+      else say('The mic stopped (error '+code+'). Tap to try again.',true);
+    }
+  },
+  onSpeak(evt,seq){
+    if(seq!==speakSeq) return;
+    if(evt==='start'){ if(voiceTiming&&!voiceTiming.voice){ voiceTiming.voice=Date.now(); voiceTiming=null; save(); renderTalk(); } return; }
+    if(phase!=='speaking') return;
+    if(evt==='error'&&!tts.tamil){ checkTts(); }
+    if(evt==='done'||evt==='error'){
+      if(P().handsFree&&convo) startListening(); else setPhase('idle');
+    }
+  },
+  onLocal(evt,data){
+    if(evt==='progress'){ try{Object.assign(localSt,JSON.parse(data),{downloading:true})}catch(e){} renderLocalBits(); return; }
+    refreshLocal();
+    if(evt==='downloaded'){ localSt.downloaded=true; localSt.downloading=false; if(P().provider==='local'||afterLocalReady) ensureLocalLoaded(); }
+    if(evt==='ready'){ localSt.ready=true; localSt.loading=false; localSt.backend=data; say(''); const f=afterLocalReady; afterLocalReady=null; if(f) f(); }
+    if(evt==='error'){ localSt.error=data; localSt.loading=false; localSt.downloading=false; if(afterLocalReady){ afterLocalReady=null; setPhase('idle'); say(data,true); } }
+    if(evt==='deleted'||evt==='cancelled'){ localSt.downloading=false; localSt.ready=false; localSess=null; }
+    renderTalk(); if(tab==='set') renderSettings();
+  },
+  onHttp(id,code,body){ const cb=pending[id]; if(!cb) return; delete pending[id]; cb(code,body); },
+  onHttpChunk(id,data){ const h=streams[id]; if(h) h.chunk(data); },
+  onHttpEnd(id,code,err){ const h=streams[id]; if(!h) return; delete streams[id]; h.end(code,err); },
+  onTtsReady(json){ try{Object.assign(tts,JSON.parse(json),{known:true})}catch(e){} renderTalk(); if(tab==='set') renderSettings(); },
+  onTheme(t){ applyTheme(t); },
+  onAppPause(){ paused=true; saveNow(); convo=false; partial=''; if(phase==='listening'||phase==='speaking'){ phase='idle'; renderDock(); } },
+  onAppResume(){ paused=false; refreshLocal(); checkTts(); markReturning(); renderTalk(); },
+  onBack(){ if(tab!=='talk'){ setTab('talk'); return true; } if(review){ review=null; return true; } return false; }
+};
+
+let utter='', utterTimer=null, sendNow=false;
+const PATIENCE={short:1500,normal:2500,long:4000};
+function armUtterTimer(extra){
+  clearTimeout(utterTimer);
+  utterTimer=setTimeout(()=>{ utterTimer=null; flushUtter(); },(PATIENCE[P().patience]||2500)+(extra||0));
+  renderDock();
+}
+function relisten(){ setTimeout(()=>{ if(phase==='listening'&&!sendNow) N.listen(P().micLang); },120); }
+function flushUtter(){
+  clearTimeout(utterTimer); utterTimer=null; sendNow=false;
+  const t=(utter+' '+partial).trim(); utter=''; partial='';
+  try{N.cancelListening()}catch(e){}
+  if(t) send(t); else noHear();
+}
+function resetUtter(){ clearTimeout(utterTimer); utterTimer=null; utter=''; partial=''; sendNow=false; }
+function noHear(){
+  if(convo&&P().handsFree&&retries<2){ retries++; say('Didn’t catch that. Listening again…'); setTimeout(()=>{ if(phase==='listening') N.listen(P().micLang); },350); return; }
+  retries=0; convo=false; setPhase('idle'); say('Didn’t hear anything. Tap the mic when you’re ready.');
+}
+function fail(req,msg){
+  lastFailed=req; convo=false; setPhase('idle'); say(msg,true); renderTalk();
+}
+
+function send(text,opts){
+  opts=opts||{};
+  if(!N){ say('Open this in the Pesu Android app.',true); return; }
+  if(!hasKey()){ setTab('set'); return; }
+  commitEarly();
+  let current, hist, meIndex=-1;
+  if(opts.retry){ current=opts.retry.current; hist=opts.retry.hist; meIndex=opts.retry.meIndex==null?-1:opts.retry.meIndex; if(!('strict' in opts)) opts.strict=false; }
+  else{
+    text=String(text||'').trim(); if(!text) return;
+    hist=S.turns.slice();
+    if(opts.hidden) current=text;
+    else { S.turns.push({role:'me',text,at:Date.now()}); meIndex=S.turns.length-1; current="Learner's message: "+text; }
+  }
+  S.lastActive=Date.now(); save();
+  try{N.cancelListening()}catch(e){}
+  partial=''; say(''); welcomeBack=false;
+  let p=P().provider;
+  if(p!=='local'&&localUsable()&&P().phoneFallback!==false&&(opts.forceLocal||Date.now()<(S.cloudCooldownUntil||0))) p='local';
+  const model=modelFor(p);
+  const sendCurrent=opts.strict?current+'\n\n(Your previous answer was not valid JSON. Reply with ONLY the JSON object described above.)':current;
+  if(p==='local'&&!localSt.ready){
+    // First use after launch: load the model into memory, then send.
+    ensureLocalLoaded(); setPhase('thinking'); say('Loading the phone model… (first time after opening takes a few seconds)');
+    const again=Object.assign({},opts,{retry:{current,hist,meIndex,timing:opts.retry&&opts.retry.timing},forceLocal:true});
+    afterLocalReady=()=>send('',again);
+    return;
+  }
+  const req={current,hist,meIndex,strict:!!opts.strict,model,provider:p,t0:Date.now(),buf:'',early:null,tSpeak:0};
+  // Stage timings for this reply: mic end -> transcript -> request -> first byte -> reply ready -> voice starts.
+  const fresh=t=>t&&Date.now()-t<30000?t:0;
+  req.timing=opts.retry&&opts.retry.timing?opts.retry.timing:{end:fresh(heard.end),final:fresh(heard.final),sent:Date.now(),model};
+  if(opts.retry&&opts.retry.timing){ req.timing.retries=(req.timing.retries||0)+1; }
+  heard={end:0,final:0};
+  setPhase('thinking'); renderTalk();
+  const handler={
+    chunk(data){
+      if(activeReq!==req) return;
+      if(!req.timing.first) req.timing.first=Date.now();
+      let d=null; try{d=JSON.parse(data)}catch(e){return}
+      const ch=d&&d.choices&&d.choices[0]; const delta=ch&&(ch.delta||ch.message);
+      const piece=delta&&typeof delta.content==='string'?delta.content:'';
+      if(!piece) return;
+      req.buf+=piece;
+      if(!req.early){
+        const e=earlyParse(req.buf);
+        if(e){ req.early=e; req.tSpeak=Date.now(); req.timing.ready=req.tSpeak; voiceTiming=req.timing; renderTalk(); speakTurn(e); }
+      }
+    },
+    end(code,err){ if(activeReq===req) finish(req,code,err); }
+  };
+  if(p==='local'){
+    // Keep one conversation going on the phone so the model only reads the new message each turn.
+    const reuse=localSess&&localSess.expect===hist.length&&localSess.turns<24;
+    if(!reuse) localSess={id:'L'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),expect:-1,turns:0};
+    req.sessId=localSess.id;
+    const payload={sessionId:localSess.id,system:RULES,history:reuse?[]:localHistory(hist),message:context()+'\n\n'+sendCurrent,temperature:0.7};
+    req.id='s'+(++reqSeq); streams[req.id]=handler;
+    activeReq=req;
+    LOCAL.chat(req.id,JSON.stringify(payload));
+    return;
+  }
+  const body=chatBody(model,buildMessages(hist,sendCurrent),{max_tokens:800,stream:true});
+  req.id=httpStream(baseFor(p)+'/chat/completions',authHeaders(p),body,handler);
+  activeReq=req;
+}
+function localHistory(hist){
+  const out=[];
+  for(const t of hist.slice(-10)){
+    if(t.role==='me') out.push({role:'user',content:"Learner's message: "+t.text});
+    else if(t.role==='tutor'&&t.data) out.push({role:'assistant',content:JSON.stringify({reply_ta:t.data.reply_ta,reply_roman:t.data.reply_roman})});
+  }
+  const merged=[];
+  for(const m of out){ if(merged.length&&merged[merged.length-1].role===m.role) merged[merged.length-1].content+='\n\n'+m.content; else merged.push(m); }
+  if(merged.length&&merged[0].role!=='user') merged.unshift({role:'user',content:'(conversation start)'});
+  if(merged.length&&merged[merged.length-1].role==='user') merged.pop();   // the new message is sent separately
+  return merged;
+}
+function localTurnDone(req){ if(req.provider==='local'&&localSess&&localSess.id===req.sessId){ localSess.expect=S.turns.length; localSess.turns++; } }
+// As soon as "reply_ta" is complete in the stream, pull it (and any correction/explanation before it) out.
+function earlyParse(buf){
+  const m=buf.match(/"reply_ta"\s*:\s*"((?:[^"\\]|\\.)*)"/); if(!m) return null;
+  let ta; try{ta=JSON.parse('"'+m[1]+'"')}catch(e){return null}
+  if(!ta.trim()) return null;
+  let o={}; const start=buf.indexOf('{');
+  if(start>=0&&start<m.index){ try{o=JSON.parse(buf.slice(start,m.index+m[0].length)+'}')}catch(e){o={}} }
+  return {reply_ta:ta,correction:o.correction||null,explain:o.explain||null};
+}
+// If a new message or Stop arrives while the tail of a spoken reply is still streaming, keep what we have.
+function commitEarly(){
+  const r=activeReq; if(!r||!r.early) return;
+  activeReq=null;
+  const full=parseJSON(r.buf);
+  if(r.provider==='local'){ try{LOCAL.cancel()}catch(e){} localSess=null; }
+  applyReply(full&&full.reply_ta?full:r.early,{spoken:true,ms:r.tSpeak-r.t0,model:r.model,timing:r.timing,meIndex:r.meIndex});
+}
+function finish(req,code,err){
+  activeReq=null;
+  const ms=(req.tSpeak||Date.now())-req.t0;
+  if(code===200){
+    let text=req.buf;
+    if(!text&&err){ // server ignored "stream" and sent a normal JSON body
+      let d=null; try{d=JSON.parse(err)}catch(e){}
+      const msg=d&&d.choices&&d.choices[0]&&d.choices[0].message; text=msg?msg.content||'':'';
+    }
+    const r=parseJSON(text);
+    if(r&&(r.reply_ta||r.reply_roman)){ lastFailed=null; returningNote=''; if(!req.timing.ready) req.timing.ready=Date.now(); applyReply(r,{spoken:!!req.early,ms,model:req.model,timing:req.timing,meIndex:req.meIndex}); localTurnDone(req); return; }
+    if(req.early){ lastFailed=null; applyReply(req.early,{spoken:true,ms,model:req.model,timing:req.timing,meIndex:req.meIndex}); localTurnDone(req); return; }
+    if(req.provider==='local') localSess=null;
+    if(!req.strict){ send('',{retry:req,strict:true}); return; }   // open models sometimes ramble; ask once more, strictly
+    fail(req,'The tutor’s reply came back garbled. Tap Try again, or pick another model in Settings.');
+    return;
+  }
+  if(req.early){ applyReply(req.early,{spoken:true,ms,model:req.model,timing:req.timing,meIndex:req.meIndex}); return; }
+  if(req.provider==='local') localSess=null;
+  // Free cloud limit used up: carry on with the phone model for the next hour.
+  if(code===429&&req.provider!=='local'&&localUsable()&&P().phoneFallback!==false){
+    S.cloudCooldownUntil=Date.now()+60*60*1000; saveNow();
+    say('Free cloud limit reached, so Pesu switched to the phone model for the next hour.');
+    send('',{retry:req,strict:req.strict,forceLocal:true}); return;
+  }
+  if(req.provider==='local'){ fail(req,'The phone model hit a problem: '+(function(){try{return JSON.parse(err).error.message}catch(e){return 'error '+code}})()+'. Tap Try again.'); return; }
+  if(effortRefused(req.model,code,err)){ send('',{retry:req,strict:req.strict}); return; }
+  fail(req,httpMessage(code,err,P().provider,false));
+}
+function retryLast(){
+  const f=lastFailed; if(!f) return; lastFailed=null;
+  convo=true;
+  send('',{retry:f});
+}
+
+function applyReply(r,o){
+  o=o||{};
+  const me=o.meIndex>=0?S.turns[o.meIndex]:null;
+  if(me&&me.role==='me'){
+    if(r.learner_roman&&String(r.learner_roman).trim()!==me.text.trim()) me.roman=String(r.learner_roman);
+    if(r.learner_en) me.en=String(r.learner_en);
+  }
+  const added=[];
+  for(const w of (Array.isArray(r.new_words)?r.new_words:[]).slice(0,5)){const k=addWord(w); if(k) added.push(k);}
+  const practiced=[];
+  for(const p of (Array.isArray(r.practiced)?r.practiced:[])){
+    const k=key(p&&p.key); if(S.words[k]&&!added.includes(k)){grade(k,p.result==='correct'); practiced.push({k,ok:p.result==='correct'});}
+  }
+  const c=r.correction&&typeof r.correction==='object'&&(r.correction.better_roman||r.correction.better_ta)?r.correction:null;
+  const d={reply_ta:String(r.reply_ta||''),reply_roman:String(r.reply_roman||''),reply_en:String(r.reply_en||''),correction:c,explain:r.explain?String(r.explain):null,added,practiced,ms:o.ms||0,model:o.model||'',timing:o.timing||null};
+  if(o.timing&&!o.spoken) voiceTiming=o.timing;
+  if(o.ms){ S.timings=(S.timings||[]).concat([o.ms]).slice(-5); }
+  S.turns.push({role:'tutor',at:Date.now(),data:d});
+  if(S.turns.length>120) S.turns=S.turns.slice(-120);
+  S.lastActive=Date.now(); save(); renderBadge();
+  renderTalk();
+  if(!o.spoken) speakTurn(d);
+}
+function segmentsFor(d){
+  const segs=[];
+  if(d.correction&&d.correction.better_ta) segs.push({lang:'ta',text:d.correction.better_ta});
+  if(d.explain&&P().speakEnglish) segs.push({lang:'en',text:d.explain});
+  if(d.reply_ta) segs.push({lang:'ta',text:d.reply_ta});
+  return segs;
+}
+let paused=false, heard={end:0,final:0}, voiceTiming=null;
+function speakTurn(d){
+  if(paused){ convo=false; setPhase('idle'); return; }
+  if(!P().speak||!N||!tts.ready){ convo=false; setPhase('idle'); if(P().speak&&N&&tts.known&&!tts.ready) say('Voice isn’t ready, so replies aren’t spoken. See the note above.'); return; }
+  setPhase('speaking');
+  try{ speakSeq=N.speak(JSON.stringify(segmentsFor(d))); }catch(e){ setPhase('idle'); }
+}
+function speakText(text,lang){
+  if(!N||!tts.ready) return;
+  if(phase==='listening'){ try{N.cancelListening()}catch(e){} }
+  convo=false; setPhase('idle');
+  try{ speakSeq=N.speak(JSON.stringify([{lang:lang||'ta',text}])); }catch(e){}
+}
+function repeatLast(){
+  const t=[...S.turns].reverse().find(t=>t.role==='tutor'&&t.data); if(!t) return;
+  if(phase==='listening'){ try{N.cancelListening()}catch(e){} }
+  convo=P().handsFree; setPhase('speaking');
+  try{ speakSeq=N.speak(JSON.stringify([{lang:'ta',text:t.data.reply_ta}])); }catch(e){ setPhase('idle'); }
+}
+function kick(){ convo=true; send(S.turns.length?KICK_BACK:KICK_NEW,{hidden:true}); }
+
+function markReturning(){
+  if(S.turns.length&&S.lastActive&&Date.now()-S.lastActive>30*60*1000&&!returningNote){
+    const h=Math.round((Date.now()-S.lastActive)/36e5);
+    returningNote=`[The learner is back after ${h<1?'less than an hour':h+' hour'+(h===1?'':'s')}. Start with a short welcome-back in Tamil, then continue the conversation or start something new related to it.]`;
+    welcomeBack=true;
+  }
+}
+let welcomeBack=false;
+
+function checkTts(){ if(!N) return; try{Object.assign(tts,JSON.parse(N.ttsStatus()),{known:true})}catch(e){} }
+
+/* ================= rendering: talk ================= */
+function tutorHTML(d,i){
+  const p=P();
+  let h='<div class="msg tutor">';
+  if(d.correction){const c=d.correction; h+=`<div class="note fix"><span class="lbl">Better way to say it</span>${c.you_said?`<span class="en">You said: ${esc(c.you_said)}</span>`:''}${p.script&&c.better_ta?`<span class="ta" style="font-size:1.05rem">${esc(c.better_ta)}</span>`:''}<span class="ro">${esc(c.better_roman)}</span>${c.why?`<span class="en">${esc(c.why)}</span>`:''}</div>`;}
+  if(d.explain){h+=`<div class="note explain"><span class="lbl">Meaning</span><span>${esc(d.explain)}</span></div>`;}
+  h+='<div class="bubble">';
+  if(p.script&&d.reply_ta) h+=`<span class="ta" lang="ta">${esc(d.reply_ta)}</span>`;
+  h+=`<span class="ro">${esc(d.reply_roman)}</span>`;
+  h+=`<span class="en" data-en="${i}"${p.english?'':' hidden'}>${esc(d.reply_en)}</span>`;
+  h+='<div class="row">';
+  if(d.reply_ta&&i>=0) h+=`<button class="chipbtn" data-play="${i}">▶ Play</button>`;
+  if(!p.english&&i>=0) h+=`<button class="chipbtn" data-show="${i}">Meaning</button>`;
+  if(d.timing) h+=timingHTML(d.timing); else if(d.ms) h+=`<span class="en" style="font-size:.74rem;margin-left:auto">⏱ ${(d.ms/1000).toFixed(1)}s</span>`;
+  h+='</div></div>';
+  const chips=[];
+  for(const k of d.added||[]){const w=S.words[k]; if(w) chips.push(`<span class="chip"><b>+ ${esc(w.roman)}</b> ${esc(w.en)}</span>`);}
+  for(const q of d.practiced||[]){const w=S.words[q.k]; if(w) chips.push(`<span class="chip${q.ok?' ok':''}"><b>${q.ok?'✓':'↺'} ${esc(w.roman)}</b> ${q.ok?'remembered':'review again'}</span>`);}
+  if(chips.length) h+=`<div class="chips">${chips.join('')}</div>`;
+  return h+'</div>';
+}
+// "⏱ 5.2s · mic 0.9 · AI 3.8 (1st byte 2.1) · voice 0.5": where the wait went, so slowness can be pinned down.
+function timingHTML(t){
+  const sec=ms=>ms>0?(ms/1000).toFixed(1):'–';
+  const start=t.end||t.final||t.sent, stop=t.voice||t.ready;
+  const parts=[];
+  if(t.end&&t.final) parts.push('mic '+sec(t.final-t.end));
+  if(t.final&&t.sent-t.final>300) parts.push('pause '+sec(t.sent-t.final));
+  if(t.ready) parts.push('AI '+sec(t.ready-t.sent)+(t.first?' (1st byte '+sec(t.first-t.sent)+')':''));
+  if(t.voice&&t.ready) parts.push('voice '+sec(t.voice-t.ready));
+  if(t.retries) parts.push(t.retries+' retry');
+  return `<span class="timing">⏱ <b>${sec(stop-start)}s</b> · ${parts.join(' · ')}</span>`;
+}
+function slowBanner(){
+  const t=(S.timings||[]).slice(-3); if(t.length<2||phase!=='idle') return '';
+  const med=t.slice().sort((a,b)=>a-b)[Math.floor(t.length/2)];
+  if(med<6000) return '';
+  return `<div class="banner warn"><b>Replies are slow (about ${Math.round(med/1000)}s) on ${esc(modelFor(P().provider))}.</b><span>A smaller or faster model will feel much more like a conversation.</span><div class="btns"><button class="primary" id="go-speed">Find a faster model</button></div></div>`;
+}
+function localPanelHTML(compact){
+  if(!LOCAL) return '<span class="en">The phone model needs the Pesu app.</span>';
+  const st=localSt; let h='';
+  if(st.downloading){
+    const pct=st.total?Math.floor(st.done*100/st.total):0;
+    h+=`<span class="en" data-local-status>Downloading… ${GB(st.done)} / ${st.total?GB(st.total):'2.6'} GB (${pct}%). Keep Pesu open; it resumes if interrupted.</span>
+        <div class="lbar"><i style="width:${pct}%"></i></div>
+        <button class="ghost" data-local="cancel" style="align-self:flex-start">Pause download</button>`;
+  } else if(st.downloaded){
+    h+=`<span class="en" data-local-status>${st.ready?'<span class="ok-t">Ready</span> · running on '+esc((st.backend||'').toLowerCase()==='gpu'?'the GPU':'the CPU'):st.loading?'Loading into memory…':'Downloaded ('+GB(st.bytes||0)+' GB)'}</span>`;
+    if(!compact) h+=`<button class="ghost danger" data-local="delete" style="align-self:flex-start">${setArmed==='localdel'?'Tap again to delete the model':'Delete model (frees 2.6 GB)'}</button>`;
+  } else {
+    const part=st.bytes>0?` · ${GB(st.bytes)} GB already downloaded`:'';
+    h+=`<span class="en" data-local-status>Not downloaded · 2.6 GB · best on phones with 6 GB+ RAM${part}</span>
+        <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="primary" data-local="download">${st.bytes>0?'Resume download':'Download (use Wi-Fi)'}</button><button class="ghost" data-local="pick">Use a file I downloaded</button></div>`;
+  }
+  if(st.error) h+=`<span class="bad-t" style="font-size:.84rem">${esc(st.error)}</span>`;
+  return h;
+}
+function renderLocalBits(){
+  const st=localSt, pct=st.total?Math.floor(st.done*100/st.total):0;
+  document.querySelectorAll('[data-local-status]').forEach(el=>{ if(st.downloading) el.textContent=`Downloading… ${GB(st.done)} / ${st.total?GB(st.total):'2.6'} GB (${pct}%). Keep Pesu open; it resumes if interrupted.`; });
+  document.querySelectorAll('.lbar i').forEach(el=>{ el.style.width=pct+'%'; });
+  if(st.downloading&&!document.querySelector('.lbar')){ renderTalk(); if(tab==='set') renderSettings(); }
+}
+document.addEventListener('click',e=>{
+  const b=e.target.closest('[data-local]'); if(!b||!LOCAL) return;
+  const a=b.dataset.local;
+  if(a==='download'){ localSt.error=''; localSt.downloading=true; LOCAL.download(LOCAL_URL); if(N) N.keepAwake(true); }
+  else if(a==='pick'){ localSt.error=''; N.pickModelFile(); }
+  else if(a==='cancel'){ LOCAL.cancelDownload(); }
+  else if(a==='delete'){ if(setArmed==='localdel'){ setArmed=null; LOCAL.delete(); localSt.downloaded=false; localSt.ready=false; } else setArmed='localdel'; }
+  else if(a==='use'){ P().provider='local'; saveNow(); }
+  else if(a==='cloud'){ P().provider='google'; saveNow(); }
+  renderTalk(); if(tab==='set') renderSettings();
+});
+function setupHTML(){
+  if(P().provider==='local'){
+    return `<div class="card">
+      <h1>Free, offline Tamil tutor</h1>
+      <p>Pesu runs Google’s Gemma 4 E2B model right on your phone: no key, no daily limit, works offline. It needs a one-time 2.6 GB download.</p>
+      ${localPanelHTML(true)}
+      <p style="font-size:.84rem">Prefer the cloud (Gemini, needs a free key, has daily limits)? <a href="#" data-local="cloud">Use the cloud instead</a>.</p>
+    </div>`;
+  }
+  return setupCloudHTML();
+}
+function setupCloudHTML(){
+  const p=P().provider, pr=PROVIDERS[p];
+  return `<div class="card">
+    <h1>One-time setup</h1>
+    <p>Pesu’s brain is a free open model running on ${esc(pr.name)}. You need a free API key, no card.</p>
+    ${p==='google'?`<ol>
+      <li>Open <a href="${pr.keyUrl}">aistudio.google.com/apikey</a> and sign in with your Google account.</li>
+      <li>Tap <b>Create API key</b>, then copy it.</li>
+      <li>Paste it below.</li>
+    </ol>`:p==='custom'?'':`<ol><li>Get a free key at <a href="${pr.keyUrl}">${esc(pr.keyUrl.replace('https://',''))}</a>.</li><li>Paste it below.</li></ol>`}
+    ${p==='custom'?`<input type="text" id="setup-url" placeholder="http://192.168.1.5:11434/v1" value="${esc(P().customUrl)}" autocapitalize="off" spellcheck="false">`:''}
+    <input type="password" id="key-in" placeholder="${p==='custom'?'API key (optional)':'Paste your key'}" autocomplete="off" autocapitalize="off" spellcheck="false">
+    <button class="primary" id="key-save">Save and connect</button>
+    <span class="en" id="setup-msg"></span>
+    <p style="font-size:.84rem">The key stays on this phone. Prefer Groq, OpenRouter or your own server? <a href="#" id="setup-other">Choose a different provider</a>.${LOCAL?' Or <a href="#" data-local="use">run it free on this phone</a>.':''}</p>
+  </div>`;
+}
+function introHTML(){
+  return `<div class="card">
+    <h1>Vanakkam! Let’s talk Tamil.</h1>
+    <p>Tap the mic and speak. Pesu answers out loud and listens again, so it flows like a real conversation.</p>
+    <ol>
+      <li>Replies start short and simple, then grow as you learn.</li>
+      <li>Stuck? Say <b>“theriyala”</b> or ask in English. It explains first, then adds the word to your list.</li>
+      <li>Your words keep coming back in later chats until they stick.</li>
+    </ol>
+    <button class="primary" id="kick">Let Pesu start</button>
+  </div>`;
+}
+function voiceBanner(){
+  if(!N||!P().speak||!tts.known) return '';
+  if(tts.ready&&tts.tamil) return '';
+  if(!tts.googleInstalled) return `<div class="banner warn"><b>Replies can’t be spoken in Tamil yet.</b><span>Your phone’s voice engine has no Tamil. Install “Speech Recognition &amp; Synthesis” from Google, then come back.</span><div class="btns"><button class="primary" data-tts="get">Get Google voice</button><button class="ghost" data-tts="recheck">I’ve installed it</button></div></div>`;
+  return `<div class="banner warn"><b>Tamil voice isn’t downloaded.</b><span>Download the Tamil voice for Google’s engine so Pesu can speak.</span><div class="btns"><button class="primary" data-tts="install">Download Tamil voice</button><button class="ghost" data-tts="settings">Voice settings</button><button class="ghost" data-tts="recheck">Check again</button></div></div>`;
+}
+function renderTalk(){
+  const el=$('#talk'); let h='';
+  if(!N) h+=`<div class="banner warn">This screen is the Pesu app’s interface. Install the APK on your phone to use it.</div>`;
+  if(N&&!hasKey()){ el.innerHTML=setupHTML(); wireSetup(); renderDock(); return; }
+  h+=voiceBanner();
+  if(!S.turns.length) h+=introHTML();
+  S.turns.forEach((t,i)=>{
+    if(t.role==='me') h+=`<div class="msg me"><span lang="ta">${esc(t.text)}</span>${t.roman?`<span class="me-ro">${esc(t.roman)}</span>`:''}${t.en?`<span class="me-en"${P().english?'':' hidden'}>${esc(t.en)}</span>`:''}</div>`;
+    else if(t.role==='tutor'&&t.data) h+=tutorHTML(t.data,i);
+  });
+  if(S.turns.length&&welcomeBack&&phase==='idle') h+=`<div class="banner"><b>Welcome back.</b><span>Tap the mic to carry on, or let Pesu pick it up.</span><div class="btns"><button class="primary" id="kick">Let Pesu start</button></div></div>`;
+  if(activeReq&&activeReq.early){ const e=activeReq.early; h+=tutorHTML({reply_ta:e.reply_ta,reply_roman:'…',reply_en:'',correction:e.correction,explain:e.explain,added:[],practiced:[]},-1); }
+  h+=slowBanner();
+  h+='<div class="msg me partial" id="partial" hidden></div>';
+  if(lastFailed&&phase==='idle') h+='<button class="ghost" id="retry" style="align-self:center">Try again</button>';
+  el.innerHTML=h;
+  const k=$('#kick'); if(k) k.onclick=()=>{welcomeBack=false; kick();};
+  const r=$('#retry'); if(r) r.onclick=retryLast;
+  const gs=$('#go-speed'); if(gs) gs.onclick=()=>{ setTab('set'); runSpeedTest(); };
+  renderPartial(); renderDock(); scrollDown();
+}
+function renderPartial(){
+  const p=$('#partial'); if(!p) return;
+  const shown=(utter+(partial?' '+partial:'')).trim();
+  p.hidden=!(phase==='listening'&&shown); p.textContent=shown; if(!p.hidden) scrollDown();
+}
+function scrollDown(){ if(tab==='talk'){ const m=$('#main'); m.scrollTop=m.scrollHeight; } }
+$('#talk').addEventListener('click',e=>{
+  const pl=e.target.closest('[data-play]'); if(pl){const t=S.turns[+pl.dataset.play]; if(t&&t.data) speakText(t.data.reply_ta,'ta'); return;}
+  const sh=e.target.closest('[data-show]'); if(sh){const en=document.querySelector(`[data-en="${sh.dataset.show}"]`); if(en) en.hidden=false; sh.remove(); return;}
+  const tb=e.target.closest('[data-tts]'); if(tb&&N){
+    const a=tb.dataset.tts;
+    if(a==='get') N.getGoogleTts(); else if(a==='install') N.installTamilVoice(); else if(a==='settings') N.openTtsSettings();
+    else { N.reinitTts(); }
+  }
+});
+function wireSetup(){
+  const b=$('#key-save'), i=$('#key-in'), m=$('#setup-msg'); if(!b) return;
+  const so=$('#setup-other'); if(so) so.onclick=e=>{ e.preventDefault(); setTab('set'); };
+  b.onclick=()=>{
+    const p=P().provider, v=i.value.trim();
+    if(p==='custom'){ P().customUrl=($('#setup-url').value||'').trim(); }
+    else if(!v){ i.style.borderColor='var(--err)'; m.textContent='Paste your key first.'; return; }
+    N.setSecret(p,v);
+    b.disabled=true; m.textContent='Connecting…';
+    loadModels(p,(ok,msg)=>{ b.disabled=false; if(ok){ renderTalk(); } else { m.textContent=msg; m.style.color='var(--err)'; } });
+  };
+}
+
+/* ================= rendering: dock ================= */
+const ICON_MIC='<rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v4"/>';
+const ICON_STOP='<rect x="7" y="7" width="10" height="10" rx="1.5" fill="currentColor" stroke="none"/>';
+const ICON_DOTS='<circle cx="6" cy="12" r="1.6" fill="currentColor"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/><circle cx="18" cy="12" r="1.6" fill="currentColor"/>';
+function renderDock(){
+  const mic=$('#mic'), st=$('#status');
+  mic.className='mic '+phase;
+  $('#mic-ico').innerHTML=phase==='thinking'?ICON_DOTS:(phase==='listening'?ICON_STOP:ICON_MIC);
+  if(phase!=='listening') $('#ring').style.transform='';
+  const heardSome=!!(utter+partial).trim();
+  const labels={idle:'<b>Tap to talk</b>',listening:heardSome?'<b>Listening…</b> I’ll reply when you pause':'<b>Listening…</b> speak whenever you’re ready',thinking:'Pesu is thinking…',speaking:'<b>Speaking…</b> tap the mic to answer'};
+  st.innerHTML=note?`<span style="color:${noteErr?'var(--err)':'var(--muted)'}">${esc(note)}</span>`:labels[phase];
+  $('#stopall').hidden=phase==='idle';
+  $('#miclang').textContent=P().micLang==='ta-IN'?'Mic: தமிழ்':'Mic: English';
+  $('#hf').classList.toggle('on',P().handsFree);
+  $('#hf').textContent=P().handsFree?'Hands-free: on':'Hands-free: off';
+}
+$('#mic').onclick=micTap;
+$('#stopall').onclick=()=>{ stopEverything(); say(''); };
+$('#quick').addEventListener('click',e=>{
+  const b=e.target.closest('button'); if(!b) return;
+  const a=b.dataset.act;
+  if(a==='miclang'){ P().micLang=P().micLang==='ta-IN'?'en-IN':'ta-IN'; save(); renderDock(); if(phase==='listening'){ try{N.cancelListening()}catch(e){} setTimeout(()=>N.listen(P().micLang),250);} return; }
+  if(a==='handsfree'){ P().handsFree=!P().handsFree; save(); renderDock(); return; }
+  if(a==='repeat'){ repeatLast(); return; }
+  if(b.dataset.say&&phase!=='thinking'){ convo=true; send(b.dataset.say); }
+});
+const box=$('#box');
+$('#kbd').onclick=()=>{ const c=$('#compose'); c.hidden=!c.hidden; if(!c.hidden) box.focus(); };
+box.addEventListener('input',()=>{ box.style.height='auto'; box.style.height=Math.min(box.scrollHeight,120)+'px'; $('#send').disabled=!box.value.trim(); });
+$('#send').onclick=()=>{ const t=box.value.trim(); if(!t||phase==='thinking') return; box.value=''; box.style.height='auto'; $('#send').disabled=true; convo=P().handsFree; send(t); };
+
+/* ================= rendering: words ================= */
+let review=null, armed=null;
+function dueLabel(w){ const d=w.due-Date.now(); if(d<=0) return '<span class="due now">due now</span>'; return `<span class="due">in ${Math.ceil(d/DAY)}d</span>`; }
+function renderWords(){
+  const all=allWords(), due=dueWords(), solid=all.filter(([k,w])=>w.box>=4).length;
+  let h=`<div class="stats"><div class="stat"><b>${all.length}</b><span>words tracked</span></div><div class="stat"><b>${due.length}</b><span>due now</span></div><div class="stat"><b>${solid}</b><span>well known</span></div></div>`;
+  if(review){
+    const item=review.queue[review.i];
+    if(!item){ h+=`<div class="flash"><div class="front">முடிஞ்சது!</div><div class="ro">Mudinjidhu — done!</div><div class="en">Reviewed ${review.done} word${review.done===1?'':'s'}.</div><button class="primary" id="rv-end">Back to list</button></div>`; }
+    else{
+      const [k,w]=item, toTa=review.dir[review.i];
+      h+=`<div class="flash"><span class="dir">${toTa?'Say it in Tamil':'What does it mean?'} · ${review.i+1}/${review.queue.length}</span>`;
+      h+=toTa?`<div class="front" style="font-family:var(--body);font-weight:600">${esc(w.en)}</div>`:`<div class="front" lang="ta">${esc(w.ta||w.roman)}</div>${w.ta?`<div class="ro">${esc(w.roman)}</div>`:''}`;
+      if(review.shown){
+        h+='<div class="back">'+(toTa?`${w.ta?`<span class="ta">${esc(w.ta)}</span>`:''}<span class="ro">${esc(w.roman)}</span>`:`<span class="ro">${esc(w.en)}</span>`)+(w.ex?`<span class="en">e.g. ${esc(w.ex)}</span>`:'')+'</div>';
+        h+=`<div class="btnrow"><button class="ghost" id="rv-again">Again</button><button class="primary" id="rv-good">Got it</button><button class="ghost" id="rv-say">▶</button></div>`;
+      } else h+='<button class="primary" id="rv-show">Show answer</button>';
+      h+='</div>';
+    }
+  } else if(all.length){
+    h+=`<button class="primary" id="rv-start">${due.length?`Review ${Math.min(due.length,15)} due word${due.length===1?'':'s'}`:'Practice weakest words'}</button>`;
+  }
+  h+='<h2>Your words</h2>';
+  if(!all.length) h+='<div class="wlist"><div class="empty">No words yet. Start talking — words you don’t know land here and come back in later chats until they stick.</div></div>';
+  else h+='<div class="wlist">'+all.sort((a,b)=>a[1].due-b[1].due).map(([k,w])=>`<div class="w"><span class="t">${esc(w.roman)}${w.ta?` <small lang="ta">${esc(w.ta)}</small>`:''}</span><span class="m">${esc(w.en)}</span><span class="sd"><span class="pulli" aria-label="strength ${w.box} of 5">${[1,2,3,4,5].map(n=>`<i class="${n<=w.box?'on':''}"></i>`).join('')}</span>${dueLabel(w)}<span><button class="tiny" data-wsay="${esc(k)}">▶</button> <button class="tiny${armed===k?' arm':''}" data-del="${esc(k)}">${armed===k?'Tap to remove':'Remove'}</button></span></span></div>`).join('')+'</div>';
+  $('#words').innerHTML=h;
+  const on=(id,f)=>{const b=$(id); if(b) b.onclick=f;};
+  on('#rv-start',()=>{const d=dueWords(); const q=(d.length?d:allWords().sort((a,b)=>a[1].box-b[1].box)).slice(0,15); review={queue:q,i:0,shown:false,done:0,dir:q.map(()=>Math.random()<.5)}; renderWords();});
+  on('#rv-show',()=>{review.shown=true; renderWords();});
+  on('#rv-good',()=>{grade(review.queue[review.i][0],true); review.i++; review.done++; review.shown=false; save(); renderWords(); renderBadge();});
+  on('#rv-again',()=>{grade(review.queue[review.i][0],false); review.i++; review.done++; review.shown=false; save(); renderWords(); renderBadge();});
+  on('#rv-say',()=>{const w=review.queue[review.i][1]; speakText(w.ta||w.roman,w.ta?'ta':'en');});
+  on('#rv-end',()=>{review=null; renderWords();});
+}
+$('#words').addEventListener('click',e=>{
+  const s=e.target.closest('[data-wsay]'); if(s){const w=S.words[s.dataset.wsay]; if(w) speakText(w.ta||w.roman,w.ta?'ta':'en'); return;}
+  const d=e.target.closest('[data-del]'); if(!d) return;
+  const k=d.dataset.del;
+  if(armed===k){delete S.words[k]; armed=null; save(); renderBadge();} else armed=k;
+  renderWords();
+});
+function renderBadge(){ const n=dueWords().length, b=$('#due-badge'); b.textContent=n; b.hidden=!n; }
+
+/* ================= rendering: settings ================= */
+let setArmed=null, importOpen=false;
+/* ---------- speed test: time a short Tamil reply on a few likely models ---------- */
+const SPEED_PROMPT='Reply in casual spoken Tamil, in Tamil script only, with one short friendly sentence, to: "Hi! What did you eat this morning?"';
+let speed={running:false,rows:[]};
+function speedCandidates(p){
+  const list=(P().modelLists||{})[p]||[], out=[];
+  const add=m=>{ if(m&&list.includes(m)&&!out.includes(m)) out.push(m); };
+  add(modelFor(p));
+  for(const re of (PREFER[p]||[])) list.filter(i=>re.test(i)).sort().reverse().forEach(add);
+  list.filter(i=>/flash|lite|mini|small|instant|scout|\b[1-9]b\b|12b/i.test(i)).forEach(add);
+  return out.slice(0,6);
+}
+function renderSettingsIf(){ if(tab==='set') renderSettings(); }
+function runSpeedTest(){
+  if(speed.running||!N) return;
+  const p=P().provider, cands=speedCandidates(p);
+  if(!cands.length){ speed={running:false,rows:[],note:'Save a key first so the models can be listed.'}; renderSettingsIf(); return; }
+  speed={running:true,rows:cands.map(m=>({model:m,state:'wait'}))}; renderSettingsIf();
+  let i=0;
+  const next=()=>{
+    if(i>=speed.rows.length){ speed.running=false; renderSettingsIf(); return; }
+    const row=speed.rows[i]; row.state='run'; renderSettingsIf();
+    let tries=0;
+    const go=()=>{
+      const t0=Date.now();
+      http('POST',baseFor(p)+'/chat/completions',authHeaders(p),chatBody(row.model,[{role:'user',content:SPEED_PROMPT}],{max_tokens:150}),(code,body)=>{
+        if(code!==200&&tries<3&&effortRefused(row.model,code,body)){ tries++; go(); return; }
+        if(code===200){
+          let d=null; try{d=JSON.parse(body)}catch(e){}
+          const m=d&&d.choices&&d.choices[0]&&d.choices[0].message;
+          row.ms=Date.now()-t0; row.sample=String(m&&m.content||'').replace(/\s+/g,' ').trim().slice(0,100); row.state='ok';
+        } else { row.state='err'; row.err=code===429?'free limit hit, try later':code===404?'not available':code===0?'no connection':'error '+code; }
+        i++; renderSettingsIf(); setTimeout(next,1500);   // spaced out to stay inside free rate limits
+      });
+    };
+    go();
+  };
+  next();
+}
+function speedHTML(){
+  const p=P().provider, cur=modelFor(p);
+  const ok=speed.rows.filter(r=>r.state==='ok'); const best=ok.length?ok.reduce((a,b)=>a.ms<=b.ms?a:b).model:'';
+  let h='';
+  if(speed.note) h+=`<small class="en">${esc(speed.note)}</small>`;
+  if(speed.rows.length) h+='<div class="spd-list">'+speed.rows.map(r=>`<div class="spd">
+      <span class="spd-m"><b>${esc(r.model)}</b>${r.model===best?' <span class="tag">fastest</span>':''}${r.model===cur?' <span class="tag in">in use</span>':''}
+      ${r.sample?`<small lang="ta">${esc(r.sample)}</small>`:''}${r.state==='err'?`<small class="bad-t">${esc(r.err)}</small>`:''}</span>
+      <span class="spd-t">${r.state==='ok'?(r.ms/1000).toFixed(1)+'s':r.state==='run'?'testing…':r.state==='wait'?'…':'—'}</span>
+      ${r.state==='ok'&&r.model!==cur?`<button class="ghost" data-use="${esc(r.model)}">Use</button>`:'<span></span>'}
+    </div>`).join('')+'</div>';
+  h+=`<button class="ghost" id="speed-run" style="align-self:flex-start"${speed.running?' disabled':''}>${speed.running?'Testing…':speed.rows.length?'Run again':'Run speed test'}</button>`;
+  return h;
+}
+function sw(id,on,label,sub){ return `<div class="set"><span class="lab">${label}${sub?`<small>${sub}</small>`:''}</span><input type="checkbox" class="switch" id="${id}" ${on?'checked':''}></div>`; }
+function renderSettings(){
+  const p=P(); const k=keyFor(p.provider);
+  const prov=p.provider, pr=PROVIDERS[prov], list=(p.modelLists||{})[prov]||[], cur=modelFor(prov);
+  let h='<h2>AI model</h2><div class="group">';
+  h+=`<div class="set col"><span class="lab">Where Pesu’s brain runs<small>${esc(pr.blurb)}</small></span><div class="seg" style="flex-wrap:wrap;align-self:flex-start">${Object.keys(PROVIDERS).filter(x=>x!=='local'||LOCAL).map(x=>`<button data-prov="${x}" class="${x===prov?'on':''}">${x==='local'?'Phone':x==='google'?'Google':x==='groq'?'Groq':x==='openrouter'?'OpenRouter':'Own server'}</button>`).join('')}</div></div>`;
+  if(prov==='local'){
+    h+=`<div class="set col"><span class="lab">Gemma 4 E2B on this phone</span>${localPanelHTML(false)}</div>`;
+    h+='</div>'+conversationSettings(p);
+    $('#settings').innerHTML=h; return;
+  }
+  if(prov==='custom') h+=`<div class="set col"><span class="lab">Server address<small>OpenAI-compatible base URL, ending in /v1</small></span><input type="text" id="curl" value="${esc(p.customUrl)}" placeholder="http://192.168.1.5:11434/v1" autocapitalize="off" spellcheck="false"></div>`;
+  h+=`<div class="set col"><span class="lab">API key${pr.needsKey?'':' (optional)'}<small>${k?'Saved: <span class="mono">'+esc(k.slice(0,6))+'…'+esc(k.slice(-4))+'</span>':'Not set'}${pr.keyUrl?` · <a href="${pr.keyUrl}">Get a free key</a>`:''}</small></span><div style="display:flex;gap:8px"><input type="password" id="key2" placeholder="${k?'Paste a new key to replace it':'Paste your key'}" autocomplete="off" autocapitalize="off" spellcheck="false"><button class="ghost" id="key2-save">Save</button></div></div>`;
+  h+=`<div class="set col"><span class="lab">Model<small id="model-msg">${list.length?list.length+' models available. Bigger models speak better Tamil but reply slower.':'Save a key to load the models.'}</small></span><div style="display:flex;gap:8px">${list.length?`<select id="model-sel">${list.map(m=>`<option value="${esc(m)}"${m===cur?' selected':''}>${esc(m.replace(/^models\//,''))}</option>`).join('')}</select>`:`<input type="text" id="model-txt" value="${esc(cur)}" placeholder="model name" autocapitalize="off" spellcheck="false">`}<button class="ghost" id="model-load">Refresh</button></div></div>`;
+  h+=`<div class="set col"><span class="lab">Speed test<small>Times a short Tamil reply on a few models so you can pick a fast one that still sounds right. Uses a few free requests.</small></span>${speedHTML()}</div>`;
+  if(LOCAL){
+    h+=`<div class="set col"><span class="lab">Phone model as backup<small>When the free cloud limit runs out, Pesu switches to Gemma on your phone for an hour instead of stopping.</small></span>${localPanelHTML(false)}</div>`;
+    h+=sw('p-phoneFallback',p.phoneFallback!==false,'Switch to the phone model automatically','');
+  }
+  h+='</div>'+conversationSettings(p);
+  $('#settings').innerHTML=h;
+}
+function conversationSettings(p){
+  let h='';
+  h+='<h2>Conversation</h2><div class="group">';
+  h+=sw('p-handsFree',p.handsFree,'Hands-free','After Pesu speaks, the mic opens again by itself.');
+  h+=sw('p-speak',p.speak,'Speak replies aloud','');
+  h+=sw('p-speakEnglish',p.speakEnglish,'Also speak English explanations','Off: explanations are shown as text only.');
+  h+=`<div class="set col"><span class="lab">Speaking speed <small id="rate-lbl">${Math.round(p.rate*100)}%</small></span><input type="range" id="p-rate" min="0.6" max="1.2" step="0.05" value="${p.rate}"></div>`;
+  h+=`<div class="set"><span class="lab">Wait after I pause<small>How long Pesu waits in silence before it treats your sentence as finished.</small></span><div class="seg"><button data-pat="short" class="${p.patience==='short'?'on':''}">Short</button><button data-pat="normal" class="${p.patience==='normal'?'on':''}">Normal</button><button data-pat="long" class="${p.patience==='long'?'on':''}">Long</button></div></div>`;
+  h+=`<div class="set"><span class="lab">Mic listens for</span><div class="seg"><button data-mic="ta-IN" class="${p.micLang==='ta-IN'?'on':''}">தமிழ்</button><button data-mic="en-IN" class="${p.micLang==='en-IN'?'on':''}">English</button></div></div>`;
+  h+='</div><h2>Display</h2><div class="group">';
+  h+=sw('p-script',p.script,'Show Tamil script','');
+  h+=sw('p-english',p.english,'Show English meaning under replies','Turn off to test yourself; tap “Meaning” to peek.');
+  h+='</div><h2>Voice</h2><div class="group">';
+  const vs=!tts.known?'Checking…':!tts.ready?'<span class="bad-t">Voice engine not ready</span>':tts.tamil?(tts.tamilOffline?'<span class="ok-t">Tamil voice ready (on phone)</span>':'<span class="ok-t">Tamil voice ready</span> · downloading the offline Tamil voice makes it start faster'):'<span class="bad-t">Tamil voice missing</span>';
+  h+=`<div class="set"><span class="lab">Status<small>${vs}${tts.engine?' · engine: '+esc(tts.engine==='com.google.android.tts'?'Google':tts.engine):''}</small></span><button class="ghost" data-tts2="test">Test</button></div>`;
+  h+=`<div class="set"><span class="lab">Fix voice<small>Use Google’s engine and download Tamil.</small></span><div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">${tts.googleInstalled?'<button class="ghost" data-tts2="install">Tamil voice</button>':'<button class="ghost" data-tts2="get">Get Google voice</button>'}<button class="ghost" data-tts2="settings">Settings</button></div></div>`;
+  h+='</div><h2>Your data</h2><div class="group">';
+  h+=`<div class="set"><span class="lab">Back up words<small>Copies your words and chat as text. Paste it somewhere safe.</small></span><button class="ghost" id="export">Copy</button></div>`;
+  h+=`<div class="set col"><span class="lab">Restore from a backup</span>${importOpen?`<textarea id="imp" rows="3" placeholder="Paste a backup here"></textarea><div style="display:flex;gap:8px"><button class="primary" id="imp-go">Restore</button><button class="ghost" id="imp-x">Cancel</button></div><small id="imp-msg" class="en"></small>`:'<button class="ghost" id="imp-open" style="align-self:flex-start">Paste a backup</button>'}</div>`;
+  h+=`<div class="set"><span class="lab">Clear chat<small>Keeps your words.</small></span><button class="ghost danger" id="clr-chat">${setArmed==='chat'?'Tap again':'Clear'}</button></div>`;
+  h+=`<div class="set"><span class="lab">Erase everything<small>Words, chat and progress.</small></span><button class="ghost danger" id="clr-all">${setArmed==='all'?'Tap again to erase':'Erase'}</button></div>`;
+  h+='</div><p class="en" style="text-align:center;margin:4px 0 12px">Pesu 3.0</p>';
+  return h;
+}
+$('#settings').addEventListener('click',e=>{
+  const t=e.target.closest('button'); if(!t) return;
+  if(t.id==='speed-run'){ runSpeedTest(); return; }
+  if(t.dataset.use){ P().models[P().provider]=t.dataset.use; S.timings=[]; saveNow(); renderSettings(); renderTalk(); return; }
+  if(t.dataset.prov){ speed={running:false,rows:[]}; if(t.dataset.prov==='local') setTimeout(ensureLocalLoaded,0); P().provider=t.dataset.prov; saveNow(); renderSettings(); renderTalk(); return; }
+  if(t.id==='key2-save'||t.id==='model-load'){
+    const prov=P().provider;
+    if(prov==='custom'&&$('#curl')) P().customUrl=$('#curl').value.trim();
+    if(t.id==='key2-save'){ const v=$('#key2').value.trim(); if(!v&&PROVIDERS[prov].needsKey){ $('#key2').style.borderColor='var(--err)'; return; } if(v||prov==='custom') N.setSecret(prov,v); }
+    const mm=$('#model-msg'); if(mm) mm.textContent='Loading models…'; t.disabled=true;
+    loadModels(prov,(ok,msg)=>{ renderSettings(); renderTalk(); if(!ok){ const m2=$('#model-msg'); if(m2){ m2.textContent=msg; m2.style.color='var(--err)'; } } });
+    return;
+  }
+  if(t.dataset.pat){ P().patience=t.dataset.pat; save(); renderSettings(); return; }
+  if(t.dataset.mic){ P().micLang=t.dataset.mic; save(); renderSettings(); renderDock(); return; }
+  if(t.dataset.tts2){ const a=t.dataset.tts2;
+    if(a==='test') speakText('வணக்கம்! நான் பேசு. எப்படி இருக்கீங்க?','ta');
+    else if(a==='install') N.installTamilVoice(); else if(a==='get') N.getGoogleTts(); else if(a==='settings') N.openTtsSettings();
+    return; }
+  if(t.id==='export'){ const ok=N&&N.copy(JSON.stringify({pesu:1,words:S.words,turns:S.turns})); t.textContent=ok?'Copied':'Couldn’t copy'; return; }
+  if(t.id==='imp-open'){ importOpen=true; renderSettings(); return; }
+  if(t.id==='imp-x'){ importOpen=false; renderSettings(); return; }
+  if(t.id==='imp-go'){
+    let d=null; try{d=JSON.parse($('#imp').value)}catch(e){}
+    if(!d||typeof d.words!=='object'){ $('#imp-msg').textContent='That doesn’t look like a Pesu backup.'; return; }
+    S.words=Object.assign({},S.words,d.words); if(Array.isArray(d.turns)&&!S.turns.length) S.turns=d.turns;
+    saveNow(); importOpen=false; renderSettings(); renderBadge(); renderTalk(); return;
+  }
+  if(t.id==='clr-chat'){ if(setArmed==='chat'){ stopEverything(); S.turns=[]; setArmed=null; lastFailed=null; welcomeBack=false; returningNote=''; saveNow(); renderTalk(); } else setArmed='chat'; renderSettings(); return; }
+  if(t.id==='clr-all'){ if(setArmed==='all'){ stopEverything(); S.turns=[]; S.words={}; setArmed=null; lastFailed=null; welcomeBack=false; returningNote=''; saveNow(); renderTalk(); renderBadge(); } else setArmed='all'; renderSettings(); return; }
+});
+$('#settings').addEventListener('change',e=>{
+  const id=e.target.id||'';
+  if(id.startsWith('p-')&&e.target.type==='checkbox'){ P()[id.slice(2)]=e.target.checked; save(); renderDock(); if(id==='p-script'||id==='p-english'||id==='p-speak') renderTalk(); }
+  if(id==='model-sel'){ P().models[P().provider]=e.target.value; saveNow(); renderTalk(); }
+  if(id==='model-txt'){ P().models[P().provider]=e.target.value.trim(); saveNow(); renderTalk(); }
+  if(id==='curl'){ P().customUrl=e.target.value.trim(); saveNow(); }
+  if(id==='p-rate'){ P().rate=parseFloat(e.target.value); save(); try{N.setRate(P().rate)}catch(x){} }
+});
+$('#settings').addEventListener('input',e=>{ if(e.target.id==='p-rate'){ $('#rate-lbl').textContent=Math.round(parseFloat(e.target.value)*100)+'%'; } });
+
+/* ================= tabs, theme, boot ================= */
+let tab='talk';
+function setTab(t){
+  tab=t; armed=null; setArmed=null;
+  [['talk','#tab-talk','#talk'],['words','#tab-words','#words'],['set','#tab-set','#settings']].forEach(([n,b,p])=>{ $(b).setAttribute('aria-selected',t===n); $(p).hidden=t!==n; });
+  $('#dock').hidden=t!=='talk';
+  if(t==='words') renderWords(); else if(t==='set'){ checkTts(); renderSettings(); } else renderTalk();
+  if(t!=='talk') $('#main').scrollTop=0;
+}
+$('#tab-talk').onclick=()=>setTab('talk');
+$('#tab-words').onclick=()=>setTab('words');
+$('#tab-set').onclick=()=>setTab('set');
+
+function applyTheme(t){ document.documentElement.setAttribute('data-theme',t==='dark'?'dark':'light'); }
+try{ applyTheme(N?(N.isDark()?'dark':'light'):(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light')); }catch(e){}
+
+refreshLocal();
+if(P().provider==='local') ensureLocalLoaded();
+checkTts(); markReturning(); renderTalk(); renderBadge();
+})();
+</script>
+</body>
+</html>

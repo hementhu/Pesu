@@ -1,0 +1,48 @@
+name: Build APK
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.14.3"
+      - name: Build
+        id: build
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          gradle :app:assembleRelease --stacktrace --no-daemon 2>&1 | tee build.log
+      - name: Report result on the 'ci' branch (log + APK)
+        if: always()
+        run: |
+          mkdir -p /tmp/out
+          cp build.log /tmp/out/ || true
+          cp app/build/outputs/apk/release/*.apk /tmp/out/Pesu.apk 2>/dev/null || true
+          echo "${{ steps.build.outcome }} ${{ github.sha }} run ${{ github.run_number }}" > /tmp/out/STATUS
+          cd /tmp/out
+          git init -q && git checkout -q -b ci && git add -A
+          git -c user.name=ci -c user.email=ci@users.noreply.github.com commit -qm "CI run ${{ github.run_number }} (${{ steps.build.outcome }})"
+          git push -fq "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" ci
+      - name: Publish release
+        if: steps.build.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp app/build/outputs/apk/release/*.apk Pesu.apk
+          gh release create "build-${{ github.run_number }}" Pesu.apk \
+            --title "Pesu build ${{ github.run_number }}" \
+            --notes "Open this page on your phone and tap Pesu.apk to install."
+      - name: Fail if the build failed
+        if: steps.build.outcome != 'success'
+        run: exit 1
