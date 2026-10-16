@@ -219,6 +219,7 @@ const DAY=864e5, INT=[0,0,1,2,4,8,16];
 // Any OpenAI-compatible chat API works. The first three have free tiers; "custom" is your own server (e.g. Ollama).
 const LOCAL=window.Local||null;
 const LOCAL_MODEL='gemma-4-E2B (phone)';
+const LOCAL_CHAR_BUDGET=11000;   // ~5.5k tokens of the model's 8k memory, leaving room for the reply
 const LOCAL_URL='https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/resolve/main/gemma-4-E2B-it.litertlm';
 const PROVIDERS={
   local:{name:'This phone',base:'local',keyUrl:'',needsKey:false,local:true,
@@ -355,13 +356,25 @@ function buildMessages(hist,current){
   out[0].content=RULES+'\n\n---\n\n'+out[0].content;
   return out;
 }
+// Small on-device models sometimes return slightly broken JSON (trailing commas, cut off at the end).
+// Pull out whatever fields are complete so romanization and meanings aren't lost.
+function salvage(text){
+  const t=String(text||''); const out={};
+  const str=k=>{ const m=t.match(new RegExp('"'+k+'"\\s*:\\s*"((?:[^"\\\\]|\\\\.)*)"')); if(!m) return null; try{return JSON.parse('"'+m[1]+'"')}catch(e){return m[1]} };
+  const arr=k=>{ const m=t.match(new RegExp('"'+k+'"\\s*:\\s*(\\[[\\s\\S]*?\\])\\s*[,}]')); if(!m) return null; try{return JSON.parse(m[1].replace(/,\s*([}\]])/g,'$1'))}catch(e){return null} };
+  for(const k of ['reply_ta','reply_roman','reply_en','explain','learner_roman','learner_en']){ const v=str(k); if(v!=null) out[k]=v; }
+  const cm=t.match(/"correction"\s*:\s*(\{[^{}]*\})/); if(cm){ try{out.correction=JSON.parse(cm[1])}catch(e){} }
+  const nw=arr('new_words'); if(nw) out.new_words=nw;
+  const pr=arr('practiced'); if(pr) out.practiced=pr;
+  return out.reply_ta||out.reply_roman?out:null;
+}
 function parseJSON(text){
   const t=String(text||'').trim();
   try{return JSON.parse(t)}catch(e){}
   const f=t.match(/```(?:json)?\s*([\s\S]*?)```/); if(f){try{return JSON.parse(f[1])}catch(e){}}
   const a=t.indexOf('{'), b=t.lastIndexOf('}');
-  if(a>=0&&b>a){try{return JSON.parse(t.slice(a,b+1))}catch(e){}}
-  return null;
+  if(a>=0&&b>a){ const body=t.slice(a,b+1); try{return JSON.parse(body)}catch(e){} try{return JSON.parse(body.replace(/,\s*([}\]])/g,'$1'))}catch(e){} }
+  return salvage(t);
 }
 
 /* ================= conversation engine ================= */
@@ -622,9 +635,13 @@ function send(text,opts){
   };
   if(p==='local'){
     // Keep one conversation going on the phone so the model only reads the new message each turn.
-    const reuse=localSess&&localSess.expect===hist.length&&localSess.turns<24;
-    if(!reuse) localSess={id:'L'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),expect:-1,turns:0};
+    // Rough size of what the phone model already holds (Tamil script ≈ 1 token per 2 characters).
+    const msgChars=(context()+sendCurrent).length;
+    const reuse=localSess&&localSess.expect===hist.length&&localSess.chars+msgChars+1200<LOCAL_CHAR_BUDGET;
+    if(!reuse) localSess={id:'L'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),expect:-1,turns:0,chars:RULES.length};
     req.sessId=localSess.id;
+    if(!reuse) localSess.chars+=localHistory(hist).reduce((n,m)=>n+m.content.length,0);
+    localSess.chars+=msgChars;
     const payload={sessionId:localSess.id,system:RULES,history:reuse?[]:localHistory(hist),message:context()+'\n\n'+sendCurrent,temperature:0.7};
     req.id='s'+(++reqSeq); streams[req.id]=handler;
     activeReq=req;
@@ -647,7 +664,10 @@ function localHistory(hist){
   if(merged.length&&merged[merged.length-1].role==='user') merged.pop();   // the new message is sent separately
   return merged;
 }
-function localTurnDone(req){ if(req.provider==='local'&&localSess&&localSess.id===req.sessId){ localSess.expect=S.turns.length; localSess.turns++; } }
+function noteProblem(req,what,raw){
+  S.diag={at:new Date().toISOString(),model:req.model,provider:req.provider,what,raw:String(raw||'').slice(-2500)}; save();
+}
+function localTurnDone(req){ if(req.provider==='local'&&localSess&&localSess.id===req.sessId){ localSess.expect=S.turns.length; localSess.turns++; localSess.chars+=req.buf.length; } }
 // As soon as "reply_ta" is complete in the stream, pull it (and any correction/explanation before it) out.
 function earlyParse(buf){
   const m=buf.match(/"reply_ta"\s*:\s*"((?:[^"\\]|\\.)*)"/); if(!m) return null;
@@ -663,7 +683,7 @@ function commitEarly(){
   activeReq=null;
   const full=parseJSON(r.buf);
   if(r.provider==='local'){ try{LOCAL.cancel()}catch(e){} localSess=null; }
-  applyReply(full&&full.reply_ta?full:r.early,{spoken:true,ms:r.tSpeak-r.t0,model:r.model,timing:r.timing,meIndex:r.meIndex});
+  applyReply(full&&full.reply_ta?full:Object.assign({},salvage(r.buf)||{},r.early),{spoken:true,ms:r.tSpeak-r.t0,model:r.model,timing:r.timing,meIndex:r.meIndex});
 }
 function finish(req,code,err){
   activeReq=null;
@@ -676,13 +696,17 @@ function finish(req,code,err){
     }
     const r=parseJSON(text);
     if(r&&(r.reply_ta||r.reply_roman)){ lastFailed=null; returningNote=''; if(!req.timing.ready) req.timing.ready=Date.now(); applyReply(r,{spoken:!!req.early,ms,model:req.model,timing:req.timing,meIndex:req.meIndex}); localTurnDone(req); return; }
-    if(req.early){ lastFailed=null; applyReply(req.early,{spoken:true,ms,model:req.model,timing:req.timing,meIndex:req.meIndex}); localTurnDone(req); return; }
+    if(req.early){ lastFailed=null; noteProblem(req,'reply could not be read',text); applyReply(Object.assign({},salvage(text)||{},req.early),{spoken:true,ms,model:req.model,timing:req.timing,meIndex:req.meIndex}); localTurnDone(req); return; }
     if(req.provider==='local') localSess=null;
     if(!req.strict){ send('',{retry:req,strict:true}); return; }   // open models sometimes ramble; ask once more, strictly
     fail(req,'The tutor’s reply came back garbled. Tap Try again, or pick another model in Settings.');
     return;
   }
-  if(req.early){ applyReply(req.early,{spoken:true,ms,model:req.model,timing:req.timing,meIndex:req.meIndex}); return; }
+  if(req.early){
+    noteProblem(req,'stopped mid-reply (status '+code+'): '+(function(){try{return JSON.parse(err).error.message}catch(e){return String(err||'').slice(0,200)}})(),req.buf);
+    if(req.provider==='local') localSess=null;   // start the phone model fresh next turn
+    applyReply(Object.assign({},salvage(req.buf)||{},req.early),{spoken:true,ms,model:req.model,timing:req.timing,meIndex:req.meIndex}); return;
+  }
   if(req.provider==='local') localSess=null;
   // Free cloud limit used up: carry on with the phone model for the next hour.
   if(code===429&&req.provider!=='local'&&localUsable()&&P().phoneFallback!==false){
@@ -1102,9 +1126,10 @@ function conversationSettings(p){
   h+='</div><h2>Your data</h2><div class="group">';
   h+=`<div class="set"><span class="lab">Back up words<small>Copies your words and chat as text. Paste it somewhere safe.</small></span><button class="ghost" id="export">Copy</button></div>`;
   h+=`<div class="set col"><span class="lab">Restore from a backup</span>${importOpen?`<textarea id="imp" rows="3" placeholder="Paste a backup here"></textarea><div style="display:flex;gap:8px"><button class="primary" id="imp-go">Restore</button><button class="ghost" id="imp-x">Cancel</button></div><small id="imp-msg" class="en"></small>`:'<button class="ghost" id="imp-open" style="align-self:flex-start">Paste a backup</button>'}</div>`;
+  if(S.diag) h+=`<div class="set"><span class="lab">Last reply problem<small>${esc(S.diag.at.slice(0,16).replace('T',' '))} · ${esc(S.diag.model)} · ${esc(S.diag.what)}</small></span><button class="ghost" id="diag-copy">Copy details</button></div>`;
   h+=`<div class="set"><span class="lab">Clear chat<small>Keeps your words.</small></span><button class="ghost danger" id="clr-chat">${setArmed==='chat'?'Tap again':'Clear'}</button></div>`;
   h+=`<div class="set"><span class="lab">Erase everything<small>Words, chat and progress.</small></span><button class="ghost danger" id="clr-all">${setArmed==='all'?'Tap again to erase':'Erase'}</button></div>`;
-  h+='</div><p class="en" style="text-align:center;margin:4px 0 12px">Pesu 3.0</p>';
+  h+='</div><p class="en" style="text-align:center;margin:4px 0 12px">Pesu 3.0.2</p>';
   return h;
 }
 $('#settings').addEventListener('click',e=>{
@@ -1126,6 +1151,7 @@ $('#settings').addEventListener('click',e=>{
     if(a==='test') speakText('வணக்கம்! நான் பேசு. எப்படி இருக்கீங்க?','ta');
     else if(a==='install') N.installTamilVoice(); else if(a==='get') N.getGoogleTts(); else if(a==='settings') N.openTtsSettings();
     return; }
+  if(t.id==='diag-copy'){ const ok=N&&N.copy(JSON.stringify(S.diag,null,1)); t.textContent=ok?'Copied':'Couldn’t copy'; return; }
   if(t.id==='export'){ const ok=N&&N.copy(JSON.stringify({pesu:1,words:S.words,turns:S.turns})); t.textContent=ok?'Copied':'Couldn’t copy'; return; }
   if(t.id==='imp-open'){ importOpen=true; renderSettings(); return; }
   if(t.id==='imp-x'){ importOpen=false; renderSettings(); return; }

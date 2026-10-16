@@ -13,8 +13,8 @@ android {
         applicationId = "app.pesu.tamil"
         minSdk = 26            // LiteRT-LM needs Android 8.0+
         targetSdk = 34
-        versionCode = 8
-        versionName = "3.0.1"
+        versionCode = 9
+        versionName = "3.0.2"
         ndk { abiFilters += listOf("arm64-v8a") }   // phones only; keeps the APK small
     }
 

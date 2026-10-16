@@ -201,7 +201,7 @@ class LocalLlm(private val act: MainActivity) {
                     EngineConfig(
                         modelPath = modelFile.absolutePath,
                         backend = backend,
-                        maxNumTokens = 4096,
+                        maxNumTokens = 8192,
                         cacheDir = act.cacheDir.absolutePath,
                     )
                 )
