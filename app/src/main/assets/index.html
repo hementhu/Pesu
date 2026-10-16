@@ -219,7 +219,7 @@ const DAY=864e5, INT=[0,0,1,2,4,8,16];
 // Any OpenAI-compatible chat API works. The first three have free tiers; "custom" is your own server (e.g. Ollama).
 const LOCAL=window.Local||null;
 const LOCAL_MODEL='gemma-4-E2B (phone)';
-const LOCAL_CHAR_BUDGET=11000;   // ~5.5k tokens of the model's 8k memory, leaving room for the reply
+const LOCAL_CHAR_BUDGET=16000;   // conservative: instructions are mostly English (~4 chars/token); stays inside the 8k-token memory
 const LOCAL_URL='https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/resolve/main/gemma-4-E2B-it.litertlm';
 const PROVIDERS={
   local:{name:'This phone',base:'local',keyUrl:'',needsKey:false,local:true,
@@ -306,11 +306,11 @@ How you talk:
 - The learner's message usually comes from speech recognition, in Tamil script, Tanglish, English, or a mix. It may contain recognition errors: read it charitably and don't treat recognition glitches as the learner's mistakes. If you truly can't understand, ask them to say it again simply.
 
 When the learner doesn't know something (they say "theriyala"/"தெரியல", "I don't know", "what is X", "?", or switch to English because they're stuck):
-1. FIRST explain it in "explain": meaning, how it's used, and a tiny example. 1-2 short English sentences (this is also read aloud, so keep it brief and natural; write Tamil words in simple romanization inside it).
+1. FIRST explain it in "explain": meaning, how it's used, and a tiny example. 1-2 short sentences written in ENGLISH (never in Tamil script); write Tamil words inside it in simple romanization.
 2. THEN add the word(s) to "new_words".
 3. Then continue with an easy question that lets them use the word right away.
 
-Corrections: if their Tamil has a real mistake (wrong word, wrong form, unnatural phrasing), fill "correction" gently with the natural spoken version. Ignore spelling and romanization variation. Don't correct English they used on purpose; just teach the Tamil word.
+Corrections: only when their Tamil has a real mistake (wrong word, wrong tense or form, clearly unnatural phrasing). Then fill "correction" with the natural spoken version of the SAME meaning: never turn a statement into a question, never change what they meant. If their sentence is understandable everyday spoken Tamil, "correction" must be null. Ignore spelling, romanization and speech-recognition variation. Don't correct English they used on purpose; just teach the Tamil word.
 
 Review words: the context lists words due for review. Work 1-2 of them naturally into your reply, ideally in a question that makes the learner SAY the word in their answer.
 
@@ -319,6 +319,16 @@ Review words: the context lists words due for review. Work 1-2 of them naturally
 "new_words": words new to this learner and worth tracking (not already tracked): anything they asked about or didn't know, plus at most 2 key words from your reply a beginner likely doesn't know. Skip very basic words (naan, nee, enna, illa, aamaa, sari). Max 4 per turn.
 
 Romanization: simple and consistent, keyboard friendly: "zh" for ழ, doubled vowels for long vowels (aa, ee, oo), "th" for த.
+
+Always fill "learner_roman" and "learner_en" for the learner's latest message when it contains any Tamil.
+
+Examples of good replies (follow this shape exactly):
+Learner's message: நான் நேத்து படம் பார்த்தேன்
+{"correction": null, "explain": null, "reply_ta": "சூப்பர்! எந்த படம் பார்த்தீங்க?", "reply_roman": "Super! Endha padam paartheenga?", "reply_en": "Super! Which movie did you watch?", "new_words": [{"ta": "நேத்து", "roman": "nethu", "en": "yesterday", "example_roman": "nethu naan office ponen"}], "practiced": [], "learner_roman": "Naan nethu padam paarthen", "learner_en": "I watched a movie yesterday"}
+Learner's message: நான் நேத்து கடைக்கு போறேன்
+{"correction": {"you_said": "Naan nethu kadaikku poren", "better_ta": "நான் நேத்து கடைக்கு போனேன்", "better_roman": "Naan nethu kadaikku ponen", "why": "Nethu (yesterday) is past, so poren (I'm going) becomes ponen (I went)."}, "explain": null, "reply_ta": "கடையில என்ன வாங்கினீங்க?", "reply_roman": "Kadaiyila enna vaangineenga?", "reply_en": "What did you buy at the shop?", "new_words": [{"ta": "வாங்கு", "roman": "vaangu", "en": "buy", "example_roman": "naan paal vaanginen"}], "practiced": [], "learner_roman": "Naan nethu kadaikku poren", "learner_en": "I'm going to the shop yesterday"}
+Learner's message: theriyala, velai na enna?
+{"correction": null, "explain": "Velai means work or job. Naan velaikku poren = I'm going to work.", "reply_ta": "நீங்க என்ன வேலை பண்றீங்க?", "reply_roman": "Neenga enna velai panreenga?", "reply_en": "What work do you do?", "new_words": [{"ta": "வேலை", "roman": "velai", "en": "work, job", "example_roman": "naan velaikku poren"}], "practiced": [], "learner_roman": "Theriyala, velai na enna?", "learner_en": "I don't know, what does velai mean?"}
 
 Reply with ONLY one JSON object, no other text, with the keys in exactly this order (it is read while you are still writing):
 {"correction": null or {"you_said": "...", "better_ta": "...", "better_roman": "...", "why": "<short English reason>"}, "explain": null or "<short English explanation>", "reply_ta": "<reply in Tamil script>", "reply_roman": "<same, romanized>", "reply_en": "<English meaning>", "new_words": [{"ta": "...", "roman": "...", "en": "...", "example_roman": "..."}], "practiced": [{"key": "<tracked key>", "result": "correct" or "wrong"}], "learner_roman": "<the learner's latest message, romanized; null if it was in English or there was none>", "learner_en": "<its English meaning; null if it was in English or there was none>"}`;
@@ -338,12 +348,24 @@ function context(){
   if(returningNote) c+='\n'+returningNote;
   return c;
 }
-function buildMessages(hist,current){
-  const msgs=[];
+// Past turns are replayed in the exact reply format (all fields), so the model keeps producing all of them.
+function historyMessages(hist){
+  const out=[]; let lastMe=null;
   for(const t of hist.slice(-10)){
-    if(t.role==='me') msgs.push({role:'user',content:"Learner's message: "+t.text});
-    else if(t.role==='tutor'&&t.data) msgs.push({role:'assistant',content:JSON.stringify({reply_ta:t.data.reply_ta,reply_roman:t.data.reply_roman})});
+    if(t.role==='me'){ lastMe=t; out.push({role:'user',content:"Learner's message: "+t.text}); }
+    else if(t.role==='tutor'&&t.data){
+      const d=t.data;
+      out.push({role:'assistant',content:JSON.stringify({correction:d.correction||null,explain:d.explain||null,reply_ta:d.reply_ta,reply_roman:d.reply_roman,reply_en:d.reply_en,
+        new_words:(d.added||[]).map(k=>S.words[k]).filter(Boolean).map(w=>({ta:w.ta,roman:w.roman,en:w.en,example_roman:w.ex})),
+        practiced:(d.practiced||[]).map(q=>({key:q.k,result:q.ok?'correct':'wrong'})),
+        learner_roman:lastMe&&lastMe.roman||null,learner_en:lastMe&&lastMe.en||null})});
+      lastMe=null;
+    }
   }
+  return out;
+}
+function buildMessages(hist,current){
+  const msgs=historyMessages(hist);
   msgs.push({role:'user',content:context()+'\n\n'+current});
   // Chat APIs want alternating roles starting with the learner.
   const out=[];
@@ -653,11 +675,7 @@ function send(text,opts){
   activeReq=req;
 }
 function localHistory(hist){
-  const out=[];
-  for(const t of hist.slice(-10)){
-    if(t.role==='me') out.push({role:'user',content:"Learner's message: "+t.text});
-    else if(t.role==='tutor'&&t.data) out.push({role:'assistant',content:JSON.stringify({reply_ta:t.data.reply_ta,reply_roman:t.data.reply_roman})});
-  }
+  const out=historyMessages(hist);
   const merged=[];
   for(const m of out){ if(merged.length&&merged[merged.length-1].role===m.role) merged[merged.length-1].content+='\n\n'+m.content; else merged.push(m); }
   if(merged.length&&merged[0].role!=='user') merged.unshift({role:'user',content:'(conversation start)'});
@@ -737,7 +755,14 @@ function applyReply(r,o){
   for(const p of (Array.isArray(r.practiced)?r.practiced:[])){
     const k=key(p&&p.key); if(S.words[k]&&!added.includes(k)){grade(k,p.result==='correct'); practiced.push({k,ok:p.result==='correct'});}
   }
-  const c=r.correction&&typeof r.correction==='object'&&(r.correction.better_roman||r.correction.better_ta)?r.correction:null;
+  let c=r.correction&&typeof r.correction==='object'&&(r.correction.better_roman||r.correction.better_ta)?r.correction:null;
+  if(c){
+    const norm=x=>String(x||'').toLowerCase().replace(/[\s.,!?'"…-]+/g,'');
+    const said=c.you_said||(me&&me.text)||'', better=c.better_ta||c.better_roman||'';
+    const same=norm(better)===norm(said)||norm(c.better_roman)===norm(said)||(me&&norm(better)===norm(me.text));
+    const madeQuestion=/\?\s*$/.test(better)&&!/\?\s*$/.test(said)&&!(me&&/\?\s*$/.test(me.text));
+    if(same||madeQuestion) c=null;
+  }
   const d={reply_ta:String(r.reply_ta||''),reply_roman:String(r.reply_roman||''),reply_en:String(r.reply_en||''),correction:c,explain:r.explain?String(r.explain):null,added,practiced,ms:o.ms||0,model:o.model||'',timing:o.timing||null};
   if(o.timing&&!o.spoken) voiceTiming=o.timing;
   if(o.ms){ S.timings=(S.timings||[]).concat([o.ms]).slice(-5); }
@@ -786,6 +811,28 @@ let welcomeBack=false;
 
 function checkTts(){ if(!N) return; try{Object.assign(tts,JSON.parse(N.ttsStatus()),{known:true})}catch(e){} }
 
+/* ---------- Tamil script -> simple romanization (fallback when the model leaves it out) ---------- */
+const TA_V={'அ':'a','ஆ':'aa','இ':'i','ஈ':'ee','உ':'u','ஊ':'oo','எ':'e','ஏ':'e','ஐ':'ai','ஒ':'o','ஓ':'o','ஔ':'au','ஃ':'h'};
+const TA_C={'க':'k','ங':'ng','ச':'s','ஞ':'nj','ட':'d','ண':'n','த':'th','ந':'n','ப':'p','ம':'m','ய':'y','ர':'r','ல':'l','வ':'v','ழ':'zh','ள':'l','ற':'r','ன':'n','ஜ':'j','ஷ':'sh','ஸ':'s','ஹ':'h'};
+const TA_S={'ா':'aa','ி':'i','ீ':'ee','ு':'u','ூ':'oo','ெ':'e','ே':'e','ை':'ai','ொ':'o','ோ':'o','ௌ':'au','்':''};
+const hasTamil=t=>/[\u0B80-\u0BFF]/.test(String(t||''));
+function romanize(text){
+  const t=String(text||''); let out='';
+  for(let i=0;i<t.length;i++){
+    const ch=t[i];
+    if(TA_C[ch]!=null){
+      let c=TA_C[ch]; const next=t[i+1];
+      // colloquial voicing: k/ch/t/p soften after a nasal or between vowels (படம் -> padam, பாக்கல -> paakkala)
+      if(next in TA_S){ out+=c+TA_S[next]; i++; } else out+=c+'a';
+    } else if(TA_V[ch]!=null) out+=TA_V[ch];
+    else if(TA_S[ch]!=null) out+=TA_S[ch];
+    else out+=ch;
+  }
+  out=out.replace(/ngk/g,'ng').replace(/nth/g,'nd').replace(/mp/g,'mb').replace(/ss/g,'ch').replace(/nysa/g,'nja')
+       .replace(/thth/g,'tth').replace(/dd/g,'tt').replace(/rr/g,'tr');
+  return out.charAt(0).toUpperCase()+out.slice(1);
+}
+
 /* ================= rendering: talk ================= */
 function tutorHTML(d,i){
   const p=P();
@@ -794,7 +841,7 @@ function tutorHTML(d,i){
   if(d.explain){h+=`<div class="note explain"><span class="lbl">Meaning</span><span>${esc(d.explain)}</span></div>`;}
   h+='<div class="bubble">';
   if(p.script&&d.reply_ta) h+=`<span class="ta" lang="ta">${esc(d.reply_ta)}</span>`;
-  h+=`<span class="ro">${esc(d.reply_roman)}</span>`;
+  h+=`<span class="ro">${esc(d.reply_roman||romanize(d.reply_ta))}</span>`;
   h+=`<span class="en" data-en="${i}"${p.english?'':' hidden'}>${esc(d.reply_en)}</span>`;
   h+='<div class="row">';
   if(d.reply_ta&&i>=0) h+=`<button class="chipbtn" data-play="${i}">▶ Play</button>`;
@@ -914,7 +961,7 @@ function renderTalk(){
   h+=voiceBanner();
   if(!S.turns.length) h+=introHTML();
   S.turns.forEach((t,i)=>{
-    if(t.role==='me') h+=`<div class="msg me"><span lang="ta">${esc(t.text)}</span>${t.roman?`<span class="me-ro">${esc(t.roman)}</span>`:''}${t.en?`<span class="me-en"${P().english?'':' hidden'}>${esc(t.en)}</span>`:''}</div>`;
+    if(t.role==='me') h+=`<div class="msg me"><span lang="ta">${esc(t.text)}</span>${t.roman?`<span class="me-ro">${esc(t.roman)}</span>`:hasTamil(t.text)&&!(activeReq&&activeReq.meIndex===i)?`<span class="me-ro">${esc(romanize(t.text))}</span>`:''}${t.en?`<span class="me-en"${P().english?'':' hidden'}>${esc(t.en)}</span>`:''}</div>`;
     else if(t.role==='tutor'&&t.data) h+=tutorHTML(t.data,i);
   });
   if(S.turns.length&&welcomeBack&&phase==='idle') h+=`<div class="banner"><b>Welcome back.</b><span>Tap the mic to carry on, or let Pesu pick it up.</span><div class="btns"><button class="primary" id="kick">Let Pesu start</button></div></div>`;
@@ -1129,7 +1176,7 @@ function conversationSettings(p){
   if(S.diag) h+=`<div class="set"><span class="lab">Last reply problem<small>${esc(S.diag.at.slice(0,16).replace('T',' '))} · ${esc(S.diag.model)} · ${esc(S.diag.what)}</small></span><button class="ghost" id="diag-copy">Copy details</button></div>`;
   h+=`<div class="set"><span class="lab">Clear chat<small>Keeps your words.</small></span><button class="ghost danger" id="clr-chat">${setArmed==='chat'?'Tap again':'Clear'}</button></div>`;
   h+=`<div class="set"><span class="lab">Erase everything<small>Words, chat and progress.</small></span><button class="ghost danger" id="clr-all">${setArmed==='all'?'Tap again to erase':'Erase'}</button></div>`;
-  h+='</div><p class="en" style="text-align:center;margin:4px 0 12px">Pesu 3.0.2</p>';
+  h+='</div><p class="en" style="text-align:center;margin:4px 0 12px">Pesu 3.0.3</p>';
   return h;
 }
 $('#settings').addEventListener('click',e=>{
