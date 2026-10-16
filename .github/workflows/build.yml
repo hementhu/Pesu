@@ -17,6 +17,16 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.14.3"
+      - name: Fetch LiteRT-LM GPU accelerators (must match the litertlm-android version)
+        run: |
+          git clone --depth 1 --branch v0.18.0 --filter=blob:none --no-checkout https://github.com/google-ai-edge/LiteRT-LM /tmp/lrt
+          cd /tmp/lrt
+          git sparse-checkout set --no-cone 'prebuilt/android_arm64/*'
+          GIT_LFS_SKIP_SMUDGE=1 git checkout
+          git lfs pull --include "prebuilt/android_arm64/*"
+          mkdir -p "$GITHUB_WORKSPACE/app/src/main/jniLibs/arm64-v8a"
+          cp prebuilt/android_arm64/*.so "$GITHUB_WORKSPACE/app/src/main/jniLibs/arm64-v8a/"
+          ls -la "$GITHUB_WORKSPACE/app/src/main/jniLibs/arm64-v8a/"
       - name: Build
         id: build
         continue-on-error: true

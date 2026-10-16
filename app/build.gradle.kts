@@ -13,8 +13,8 @@ android {
         applicationId = "app.pesu.tamil"
         minSdk = 26            // LiteRT-LM needs Android 8.0+
         targetSdk = 34
-        versionCode = 7
-        versionName = "3.0"
+        versionCode = 8
+        versionName = "3.0.1"
         ndk { abiFilters += listOf("arm64-v8a") }   // phones only; keeps the APK small
     }
 
@@ -52,5 +52,5 @@ kotlin {
 
 dependencies {
     // Google's on-device LLM runtime (runs Gemma 4 E2B on the phone).
-    implementation("com.google.ai.edge.litertlm:litertlm-android:latest.release")
+    implementation("com.google.ai.edge.litertlm:litertlm-android:0.18.0")   // keep in sync with the accelerator tag in build.yml
 }
