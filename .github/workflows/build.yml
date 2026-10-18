@@ -27,9 +27,20 @@ jobs:
           mkdir -p "$GITHUB_WORKSPACE/app/src/main/jniLibs/arm64-v8a"
           cp prebuilt/android_arm64/*.so "$GITHUB_WORKSPACE/app/src/main/jniLibs/arm64-v8a/"
           ls -la "$GITHUB_WORKSPACE/app/src/main/jniLibs/arm64-v8a/"
+      - name: Restore release signing key (from repository secrets)
+        env:
+          PESU_KEYSTORE_B64: ${{ secrets.PESU_KEYSTORE_B64 }}
+        run: |
+          if [ -z "$PESU_KEYSTORE_B64" ]; then
+            echo "::error::secret PESU_KEYSTORE_B64 is not set; refusing to publish an unsigned APK"; exit 1
+          fi
+          echo "$PESU_KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/pesu-release.p12"
+          echo "PESU_KEYSTORE=$RUNNER_TEMP/pesu-release.p12" >> "$GITHUB_ENV"
       - name: Build
         id: build
         continue-on-error: true
+        env:
+          PESU_KEYSTORE_PASSWORD: ${{ secrets.PESU_KEYSTORE_PASSWORD }}
         run: |
           set -o pipefail
           gradle :app:assembleRelease --stacktrace --no-daemon 2>&1 | tee build.log

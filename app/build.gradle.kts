@@ -13,24 +13,34 @@ android {
         applicationId = "app.pesu.tamil"
         minSdk = 26            // LiteRT-LM needs Android 8.0+
         targetSdk = 34
-        versionCode = 10
-        versionName = "3.0.3"
+        versionCode = 11
+        versionName = "3.0.4"
         ndk { abiFilters += listOf("arm64-v8a") }   // phones only; keeps the APK small
     }
 
-    // Same key as every earlier Pesu APK, so updates install over the old app and keep your words.
+    // Release signing key, kept OUT of the repo. CI reads it from GitHub secrets (env vars);
+    // a local build reads ~/.gradle/gradle.properties (pesu.keystore, pesu.keystorePassword).
+    // The key was rotated on 2026-10-18 after the old one was published here, so APKs from
+    // build 3.0.4 on do not install over earlier ones: uninstall the old Pesu first.
+    val keystorePath = System.getenv("PESU_KEYSTORE") ?: (findProperty("pesu.keystore") as String?)
+    val keystorePassword = System.getenv("PESU_KEYSTORE_PASSWORD")
+        ?: (findProperty("pesu.keystorePassword") as String?)
+    val releaseSigning = keystorePath != null && keystorePassword != null
     signingConfigs {
-        create("release") {
-            storeFile = rootProject.file("pesu-release.keystore")
-            storePassword = "pesu-tamil"
-            keyAlias = "pesu"
-            keyPassword = "pesu-tamil"
+        if (releaseSigning) {
+            create("release") {
+                storeFile = file(keystorePath!!)
+                storeType = "pkcs12"
+                storePassword = keystorePassword
+                keyAlias = "pesu"
+                keyPassword = keystorePassword
+            }
         }
     }
     buildTypes {
         release {
             isMinifyEnabled = false
-            signingConfig = signingConfigs.getByName("release")
+            if (releaseSigning) signingConfig = signingConfigs.getByName("release")
         }
     }
     compileOptions {

@@ -5,3 +5,8 @@ local.properties
 *.iml
 .idea/
 app/src/main/jniLibs/
+
+# Signing keys never belong in the repo
+*.keystore
+*.jks
+*.p12
